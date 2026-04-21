@@ -935,21 +935,8 @@ function initChat() {
   renderRoomList();
   joinRoom("General");
 
-  // initial load
-  refreshChatMessages();
-
-  // 🔥 REAL-TIME SUPABASE LISTENER
-  supabase
-    .channel('chat')
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'messages'
-    }, payload => {
-      console.log("New message:", payload.new);
-      refreshChatMessages();
-    })
-    .subscribe();
+  if (chatPollTimer) clearInterval(chatPollTimer);
+  chatPollTimer = setInterval(refreshChatMessages, 2000);
 }
 
 function renderRoomList() {
@@ -977,52 +964,35 @@ function joinRoom(room) {
   DB.setChat(chat);
 }
 
-async function refreshChatMessages() {
+function refreshChatMessages() {
   const el = document.getElementById("chat-messages");
   if (!el || !currentRoom) return;
-
-  const { data, error } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("room", currentRoom)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error(error);
-    return;
-  }
-
-  el.innerHTML = data.map(m => {
-    const time = m.created_at
-      ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      : "";
-
-    return `
-      <div class="chat-msg">
-        <span class="chat-msg-user">[${m.user}]</span>
-        ${m.msg}
-        <span style="color:#aaa;font-size:9px;">${time}</span>
-      </div>
-    `;
+  const chat = DB.getChat();
+  const msgs = (chat.rooms[currentRoom] || []).slice(-80);
+  el.innerHTML = msgs.map(m => {
+    if (m.system) return `<div class="chat-msg chat-msg-system">*** ${m.msg}</div>`;
+    const time = new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return `<div class="chat-msg"><span class="chat-msg-user">[${m.user}]</span> ${m.msg} <span style="color:#aaa;font-size:9px;">${time}</span></div>`;
   }).join("");
-
   el.scrollTop = el.scrollHeight;
 }
 
-async function sendChatMessage() {
+function sendChatMessage() {
   const input = document.getElementById("chat-input");
+  if (!input) return;
   const msg = input.value.trim();
   if (!msg || !currentRoom) return;
 
-  await supabase.from('messages').insert([
-    {
-      user: currentUser,
-      msg: msg,
-      room: currentRoom
-    }
-  ]);
+  const chat = DB.getChat();
+  if (!chat.rooms[currentRoom]) chat.rooms[currentRoom] = [];
+  chat.rooms[currentRoom].push({ user: currentUser, msg, ts: Date.now() });
+  // Keep last 200 messages per room
+  if (chat.rooms[currentRoom].length > 200) chat.rooms[currentRoom] = chat.rooms[currentRoom].slice(-200);
+  DB.setChat(chat);
 
   input.value = "";
+  refreshChatMessages();
+  awardBadge(currentUser, "chatter");
 }
 
 function createRoom() {
