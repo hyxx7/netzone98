@@ -1,6 +1,7 @@
 /* =====================================================
-   NETZONE 98 — APP.JS
+   NETZONE 98 — APP.JS (UPDATED)
    Firebase-powered (Firestore + Auth)
+   With: Message cleanup, file uploads, app builder/browser
    ===================================================== */
 
 /* ─────────────────────────────────────────────────────
@@ -12,7 +13,7 @@ import { getAuth, createUserWithEmailAndPassword,
 import { getFirestore, doc, getDoc, setDoc, updateDoc,
          deleteDoc, addDoc, getDocs, onSnapshot,
          collection, query, orderBy, limit,
-         serverTimestamp, arrayUnion, increment }                 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+         serverTimestamp, arrayUnion, increment, arrayRemove }   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyAf7OQ6gKgm5sWSkpEAazoicbtjmHmGzsQ",
@@ -150,7 +151,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const status = document.getElementById("boot-status");
   let step = 0;
 
-  // Increment + show global visitor count
   const visitors = await fsIncrementGlobalVisitors();
   document.getElementById("visitor-count").textContent = visitors;
 
@@ -527,7 +527,11 @@ function buildProfileHTML(username, user, isOwn) {
 
 function buildClassicLayout(username, user, isOwn) {
   const p = user.profile || {};
-  // ...
+
+  const friends = (p.friends || []).map(f =>
+    `<span class="friend-chip" onclick="viewUserProfile('${f}')">${f}</span>`
+  ).join("");
+
   const avatarContent = p.avatar
     ? `<div class="profile-avatar-container">
          <img src="${p.avatar}" alt="avatar" class="profile-avatar-img" />
@@ -542,7 +546,6 @@ function buildClassicLayout(username, user, isOwn) {
 
   const blinkStyle = p.blinkText ? "animation: blink 0.8s step-end infinite;" : "";
 
-  // Load visit count async and inject it
   const visitCountId = "visit-count-" + username;
 
   const html = `
@@ -595,7 +598,6 @@ function buildClassicLayout(username, user, isOwn) {
     </div>
   `;
 
-  // Async inject visits + badges after render
   setTimeout(async () => {
     const vc = document.getElementById(visitCountId);
     if (vc) {
@@ -742,7 +744,6 @@ async function saveProfile() {
     friends:     document.getElementById("edit-friends").value.split(",").map(s => s.trim()).filter(Boolean),
   };
 
-  // Merge with existing profile fields (layout, colors, etc.)
   const user = await fsGetUser(currentUser);
   const merged = { ...user.profile, ...profile };
   await fsSetUser(currentUser, { profile: merged });
@@ -812,6 +813,52 @@ async function exportProfile() {
 }
 
 /* ─────────────────────────────────────────────────────
+   FILE UPLOAD HANDLING (NEW)
+   ───────────────────────────────────────────────────── */
+async function handleAvatarUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result;
+    document.getElementById("edit-avatar").value = base64;
+    notify("🖼️ Avatar uploaded! Click Save to apply.");
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handlePostImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById("post-content").value = e.target.result;
+    notify("📸 Image loaded! Click Post to share.");
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handleChatImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const msg = e.target.result;
+    const input = document.getElementById("chat-input");
+    if (currentRoom) {
+      await addDoc(collection(db, "chatRooms", currentRoom, "messages"), {
+        user: currentUser,
+        msg,
+        ts: serverTimestamp()
+      });
+      await cleanupOldMessages(currentRoom);
+      notify("📸 Image sent!");
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ─────────────────────────────────────────────────────
    POSTS
    ───────────────────────────────────────────────────── */
 async function loadMyPosts() {
@@ -821,7 +868,7 @@ async function loadMyPosts() {
   if (!posts.length) { list.innerHTML = "<i style='color:#888;'>No posts yet.</i>"; return; }
 
   list.innerHTML = posts.map(p => {
-    const isImage = /\.(gif|png|jpg|jpeg|webp)$/i.test(p.content?.trim()) || p.content?.trim().startsWith("http");
+    const isImage = /\.(gif|png|jpg|jpeg|webp)$/i.test(p.content?.trim()) || p.content?.trim().startsWith("data:image");
     const contentHtml = isImage
       ? `<img src="${p.content.trim()}" alt="" style="max-width:100%; max-height:150px; display:block; margin-top:4px;" />`
       : p.content;
@@ -947,7 +994,6 @@ async function viewUserProfile(username) {
   content.innerHTML = buildProfileHTML(username, user, false);
   applyCSSEffects(p, content);
 
-  // Guestbook section
   const gbs = await fsGetGuestbook(username);
   const gbSection = document.createElement("div");
   gbSection.style.marginTop = "8px";
@@ -994,22 +1040,21 @@ async function submitOtherGuestbook() {
    ───────────────────────────────────────────────────── */
 const DEFAULT_ROOMS = ["General", "Tech", "Gaming", "Music"];
 
-async function initChat() {
-  await renderRoomList();
-  joinRoom("General");
-}
-
-// NEW: Message cleanup function
 async function cleanupOldMessages(room) {
   const msgsRef = collection(db, "chatRooms", room, "messages");
   const snap = await getDocs(query(msgsRef, orderBy("ts", "desc")));
   
   if (snap.docs.length > 1000) {
-    const toDelete = snap.docs.slice(1000); // Keep newest 1000
+    const toDelete = snap.docs.slice(1000);
     for (const doc of toDelete) {
       await deleteDoc(doc.ref);
     }
   }
+}
+
+async function initChat() {
+  await renderRoomList();
+  joinRoom("General");
 }
 
 async function renderRoomList() {
@@ -1041,8 +1086,6 @@ function joinRoom(room) {
     msg: currentUser + " joined the room.",
     ts: serverTimestamp(),
     system: true
-     // Auto-cleanup old messages
-     await cleanupOldMessages(room);
   });
 
   const msgsRef = query(
@@ -1050,7 +1093,7 @@ function joinRoom(room) {
     orderBy("ts"), limit(80)
   );
 
-chatUnsub = onSnapshot(msgsRef, snap => {
+  chatUnsub = onSnapshot(msgsRef, snap => {
     const el = document.getElementById("chat-messages");
     if (!el) return;
     el.innerHTML = snap.docs.map(d => {
@@ -1062,7 +1105,8 @@ chatUnsub = onSnapshot(msgsRef, snap => {
       const isImage = /\.(gif|png|jpg|jpeg|webp)$/i.test(m.msg.trim())
         || m.msg.trim().startsWith("https://media.tenor")
         || m.msg.trim().startsWith("https://i.giphy")
-        || m.msg.trim().startsWith("https://media.giphy");
+        || m.msg.trim().startsWith("https://media.giphy")
+        || m.msg.trim().startsWith("data:image");
       const msgContent = isImage
         ? `<img src="${m.msg.trim()}" alt="gif" style="max-width:200px; max-height:150px; display:block; margin-top:4px; border-radius:4px;" />`
         : m.msg;
@@ -1070,6 +1114,8 @@ chatUnsub = onSnapshot(msgsRef, snap => {
     }).join("");
     el.scrollTop = el.scrollHeight;
   });
+
+  cleanupOldMessages(room);
 }
 
 async function sendChatMessage() {
@@ -1081,6 +1127,7 @@ async function sendChatMessage() {
   await addDoc(collection(db, "chatRooms", currentRoom, "messages"), {
     user: currentUser, msg, ts: serverTimestamp()
   });
+  await cleanupOldMessages(currentRoom);
   fsAwardBadge(currentUser, "chatter");
 }
 
@@ -1149,7 +1196,6 @@ function loadGame(name) {
   if (name === "memory") startMemory(area);
 }
 
-/* ── SNAKE ── */
 function startSnake(area) {
   const W = 300, H = 300, SZ = 15;
   area.innerHTML = `
@@ -1214,7 +1260,6 @@ function startSnake(area) {
   gameLoop = requestAnimationFrame(draw);
 }
 
-/* ── PONG ── */
 function startPong(area) {
   const W = 400, H = 280;
   area.innerHTML = `
@@ -1257,7 +1302,6 @@ function startPong(area) {
   gameLoop = requestAnimationFrame(draw);
 }
 
-/* ── MEMORY ── */
 function startMemory(area) {
   const emojis = ["🎮","🌟","🎵","🚀","💎","🔥","🌈","🎭"];
   const cards  = [...emojis, ...emojis].sort(() => Math.random() - 0.5);
@@ -1322,6 +1366,7 @@ const ALL_BADGES = [
   { id: "social",     icon: "⭐", name: "Social",      desc: "Signed a guestbook" },
   { id: "gamer",      icon: "🎮", name: "Gamer",       desc: "Played a mini game" },
   { id: "explorer",   icon: "🔭", name: "Explorer",    desc: "Visited another profile" },
+  { id: "developer",  icon: "💻", name: "Developer",   desc: "Published an app" },
 ];
 
 async function initBadges() {
@@ -1376,7 +1421,6 @@ async function changePassword() {
   if (user.isGuest) return showSettingsMsg("Guests can't change passwords.", "red");
 
   try {
-    // Re-authenticate then update
     await signInWithEmailAndPassword(auth, user.email, oldpass);
     const { updatePassword } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
     await updatePassword(auth.currentUser, newpass);
@@ -1445,57 +1489,25 @@ function setChecked(id, val) {
   if (el) el.checked = val;
 }
 
-
-
 /* ─────────────────────────────────────────────────────
-   FILE UPLOAD HANDLING
+   PLACEHOLDER FUNCTIONS FOR APP BUILDER/BROWSER
    ───────────────────────────────────────────────────── */
-async function handleAvatarUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  // Convert to base64
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const base64 = e.target.result;
-    document.getElementById("edit-avatar").value = base64;
-    notify("🖼️ Avatar uploaded! Click Save to apply.");
-  };
-  reader.readAsDataURL(file);
+async function initAppBuilder() {
+  const area = document.getElementById("appbuilder-content");
+  if (!area) return;
+  area.innerHTML = `<div style="padding:20px; text-align:center; color:#888;">
+    🛠️ App Builder loaded. Load app-builder.js to enable.
+  </div>`;
 }
 
-async function handlePostImageUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById("post-content").value = e.target.result;
-    notify("📸 Image loaded! Click Post to share.");
-  };
-  reader.readAsDataURL(file);
+async function initAppBrowser() {
+  const area = document.getElementById("appbrowser-content");
+  if (!area) return;
+  area.innerHTML = `<div style="padding:20px; text-align:center; color:#888;">
+    📦 App Browser loaded. Load app-browser.js to enable.
+  </div>`;
 }
 
-async function handleChatImageUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const msg = e.target.result;
-    const input = document.getElementById("chat-input");
-    if (currentRoom) {
-      await addDoc(collection(db, "chatRooms", currentRoom, "messages"), {
-        user: currentUser,
-        msg,
-        ts: serverTimestamp()
-      });
-      await cleanupOldMessages(currentRoom);
-      notify("📸 Image sent!");
-    }
-  };
-  reader.readAsDataURL(file);
-}
 /* ─────────────────────────────────────────────────────
    EXPOSE FUNCTIONS TO GLOBAL SCOPE
    ───────────────────────────────────────────────────── */
@@ -1531,8 +1543,9 @@ window.applyDesktopBg       = applyDesktopBg;
 window.changePassword       = changePassword;
 window.deleteAccount        = deleteAccount;
 window.handleTerminalCmd    = handleTerminalCmd;
-window.handleAvatarUpload     = handleAvatarUpload;
-window.handlePostImageUpload  = handlePostImageUpload;
-window.handleChatImageUpload  = handleChatImageUpload;
-window.cleanupOldMessages     = cleanupOldMessages;
-window.initAppBuilder = initAppBuilder;
+window.handleAvatarUpload   = handleAvatarUpload;
+window.handlePostImageUpload = handlePostImageUpload;
+window.handleChatImageUpload = handleChatImageUpload;
+window.cleanupOldMessages   = cleanupOldMessages;
+window.initAppBuilder       = initAppBuilder;
+window.initAppBrowser       = initAppBrowser;
