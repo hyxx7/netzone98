@@ -1422,3 +1422,40 @@ function setChecked(id, val) {
   const el = document.getElementById(id);
   if (el) el.checked = val;
 }
+
+
+/* ─────────────────────────────────────────────────────
+   EXPOSE FUNCTIONS TO GLOBAL SCOPE
+   ───────────────────────────────────────────────────── */
+window.handleLogin          = handleLogin;
+window.handleRegister       = handleRegister;
+window.handleGuestLogin     = handleGuestLogin;
+window.handleLogout         = handleLogout;
+window.switchAuthTab        = switchAuthTab;
+window.toggleStartMenu      = toggleStartMenu;
+window.openApp              = openApp;
+window.closeWindow          = closeWindow;
+window.minimizeWindow       = minimizeWindow;
+window.bringToFront         = bringToFront;
+window.switchProfileTab     = switchProfileTab;
+window.saveProfile          = saveProfile;
+window.saveCustomization    = saveCustomization;
+window.exportProfile        = exportProfile;
+window.submitPost           = submitPost;
+window.deletePost           = deletePost;
+window.loadAllUsers         = loadAllUsers;
+window.loadTopProfiles      = loadTopProfiles;
+window.loadRandomProfile    = loadRandomProfile;
+window.viewUserProfile      = viewUserProfile;
+window.signOtherGuestbook   = signOtherGuestbook;
+window.submitOtherGuestbook = submitOtherGuestbook;
+window.followUser           = followUser;
+window.signGuestbook        = signGuestbook;
+window.joinRoom             = joinRoom;
+window.sendChatMessage      = sendChatMessage;
+window.createRoom           = createRoom;
+window.loadGame             = loadGame;
+window.applyDesktopBg       = applyDesktopBg;
+window.changePassword       = changePassword;
+window.deleteAccount        = deleteAccount;
+window.handleTerminalCmd    = handleTerminalCmd;
