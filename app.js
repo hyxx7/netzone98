@@ -935,8 +935,21 @@ function initChat() {
   renderRoomList();
   joinRoom("General");
 
-  if (chatPollTimer) clearInterval(chatPollTimer);
-  chatPollTimer = setInterval(refreshChatMessages, 2000);
+  // initial load
+  refreshChatMessages();
+
+  // 🔥 REAL-TIME SUPABASE LISTENER
+  supabase
+    .channel('chat')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'messages'
+    }, payload => {
+      console.log("New message:", payload.new);
+      refreshChatMessages();
+    })
+    .subscribe();
 }
 
 function renderRoomList() {
@@ -964,35 +977,52 @@ function joinRoom(room) {
   DB.setChat(chat);
 }
 
-function refreshChatMessages() {
+async function refreshChatMessages() {
   const el = document.getElementById("chat-messages");
   if (!el || !currentRoom) return;
-  const chat = DB.getChat();
-  const msgs = (chat.rooms[currentRoom] || []).slice(-80);
-  el.innerHTML = msgs.map(m => {
-    if (m.system) return `<div class="chat-msg chat-msg-system">*** ${m.msg}</div>`;
-    const time = new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    return `<div class="chat-msg"><span class="chat-msg-user">[${m.user}]</span> ${m.msg} <span style="color:#aaa;font-size:9px;">${time}</span></div>`;
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("room", currentRoom)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  el.innerHTML = data.map(m => {
+    const time = m.created_at
+      ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "";
+
+    return `
+      <div class="chat-msg">
+        <span class="chat-msg-user">[${m.user}]</span>
+        ${m.msg}
+        <span style="color:#aaa;font-size:9px;">${time}</span>
+      </div>
+    `;
   }).join("");
+
   el.scrollTop = el.scrollHeight;
 }
 
-function sendChatMessage() {
+async function sendChatMessage() {
   const input = document.getElementById("chat-input");
-  if (!input) return;
   const msg = input.value.trim();
   if (!msg || !currentRoom) return;
 
-  const chat = DB.getChat();
-  if (!chat.rooms[currentRoom]) chat.rooms[currentRoom] = [];
-  chat.rooms[currentRoom].push({ user: currentUser, msg, ts: Date.now() });
-  // Keep last 200 messages per room
-  if (chat.rooms[currentRoom].length > 200) chat.rooms[currentRoom] = chat.rooms[currentRoom].slice(-200);
-  DB.setChat(chat);
+  await supabase.from('messages').insert([
+    {
+      user: currentUser,
+      msg: msg,
+      room: currentRoom
+    }
+  ]);
 
   input.value = "";
-  refreshChatMessages();
-  awardBadge(currentUser, "chatter");
 }
 
 function createRoom() {
@@ -1420,3 +1450,11 @@ function setChecked(id, val) {
   const el = document.getElementById(id);
   if (el) el.checked = val;
 }
+
+/* =========================
+   SUPABASE INIT
+   ========================= */
+const supabase = window.supabase.createClient(
+  "https://netzone98.netlify.app/",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjanpxenBkZGd1cHlqZXVhZ3NtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTA4MTYsImV4cCI6MjA5MjM2NjgxNn0.RL3uEKaoi4sE612u0BV7DW5xGQUkMBOY2rVIYvs_jGE"
+);
