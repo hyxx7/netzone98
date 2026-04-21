@@ -51,6 +51,8 @@
         <button class="start-item" onclick="openApp('guestbook'); toggleStartMenu()">📖 My Guestbook</button>
         <button class="start-item" onclick="openApp('games'); toggleStartMenu()">🎮 Mini Games</button>
         <button class="start-item" onclick="openApp('badges'); toggleStartMenu()">🏅 Badges</button>
+        <button class="start-item" onclick="openApp('appbuilder'); toggleStartMenu()">🛠️ App Builder</button>
+        <button class="start-item" onclick="openApp('appbrowser'); toggleStartMenu()">📦 App Browser</button>
         <hr class="start-divider"/>
         <button class="start-item" onclick="openApp('settings'); toggleStartMenu()">⚙️ Settings</button>
         <button class="start-item danger" onclick="handleLogout()">🚪 Log Out</button>
@@ -82,6 +84,14 @@
       <div class="desk-icon" ondblclick="openApp('badges')">
         <div class="desk-icon-img">🏅</div>
         <div class="desk-icon-label">Badges</div>
+      </div>
+      <div class="desk-icon" ondblclick="openApp('appbuilder')">
+        <div class="desk-icon-img">🛠️</div>
+        <div class="desk-icon-label">App Builder</div>
+      </div>
+      <div class="desk-icon" ondblclick="openApp('appbrowser')">
+        <div class="desk-icon-img">📦</div>
+        <div class="desk-icon-label">App Browser</div>
       </div>
       <div class="desk-icon" ondblclick="openApp('settings')">
         <div class="desk-icon-img">⚙️</div>
@@ -230,7 +240,15 @@
             </tr>
             <tr>
               <td class="form-label">Avatar URL:</td>
-              <td><input class="xp-input" id="edit-avatar" placeholder="https://...gif" /></td>
+              <td>
+                <input class="xp-input" id="edit-avatar" placeholder="https://...gif" />
+                <div style="margin-top:4px;">
+                  <label style="font-size:10px; cursor:pointer;">
+                    📁 Or upload:
+                    <input type="file" id="avatar-file-input" accept="image/*" style="display:none;" onchange="handleAvatarUpload(event)" />
+                  </label>
+                </div>
+              </td>
             </tr>
             <tr>
               <td class="form-label">Bio:</td>
@@ -333,6 +351,10 @@
           <textarea class="xp-input" id="post-content" rows="3" placeholder="What's on your mind? GIF URLs work too! 🎉"></textarea>
           <div style="margin-top:6px; display:flex; gap:6px;">
             <button class="xp-btn primary" onclick="submitPost()">📤 Post It!</button>
+            <label style="display:flex; align-items:center; cursor:pointer;">
+              <input type="file" accept="image/*" style="display:none;" onchange="handlePostImageUpload(event)" />
+              <span class="xp-btn">📁 Upload Image</span>
+            </label>
           </div>
           <div class="section-title" style="margin-top:12px;">📋 My Posts</div>
           <div id="my-posts-list"></div>
@@ -389,6 +411,10 @@
           <div id="chat-messages"></div>
           <div id="chat-input-row" style="display:flex; gap:4px; margin-top:4px;">
             <input class="xp-input" id="chat-input" placeholder="Type a message... (Enter to send)" onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1;" />
+            <label style="cursor:pointer;">
+              <input type="file" accept="image/*" style="display:none;" onchange="handleChatImageUpload(event)" />
+              <span class="xp-btn">📸</span>
+            </label>
             <button class="xp-btn primary" onclick="sendChatMessage()">Send</button>
           </div>
         </div>
@@ -533,6 +559,53 @@
     </div>
   </template>
 
+  <!-- APP BUILDER WINDOW -->
+  <template id="tpl-appbuilder">
+    <div class="app-window window" id="win-appbuilder" data-appid="appbuilder">
+      <div class="window-titlebar">
+        <span class="window-title">🛠️ App Builder</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('appbuilder')">_</button>
+          <button class="win-btn close" onclick="closeWindow('appbuilder')">✕</button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div id="appbuilder-content"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- APP BROWSER WINDOW -->
+  <template id="tpl-appbrowser">
+    <div class="app-window window" id="win-appbrowser" data-appid="appbrowser" style="width:520px;">
+      <div class="window-titlebar green-bar">
+        <span class="window-title">📦 App Browser</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('appbrowser')">_</button>
+          <button class="win-btn close" onclick="closeWindow('appbrowser')">✕</button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div id="appbrowser-content"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- APP VIEWER WINDOW (for running apps) -->
+  <template id="tpl-appviewer">
+    <div class="app-window window" id="win-appviewer" data-appid="appviewer" style="width:520px; min-height:400px;">
+      <div class="window-titlebar red-bar">
+        <span class="window-title" id="appviewer-title">▶️ App</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('appviewer')">_</button>
+          <button class="win-btn close" onclick="closeWindow('appviewer')">✕</button>
+        </div>
+      </div>
+      <div class="window-body" id="appviewer-content">
+      </div>
+    </div>
+  </template>
+
   <!-- VHS OVERLAY -->
   <div id="vhs-overlay" class="hidden">
     <div class="scanlines"></div>
@@ -545,8 +618,11 @@
 
   <!-- NOTIFICATION POPUP -->
   <div id="notification" class="hidden"></div>
+
 <!-- Firebase v10 CDN (module scripts) -->
   <script type="module" src="app.js"></script>
+  <script type="module" src="app-builder.js"></script>
+  <script type="module" src="app-browser.js"></script>
 
 </body>
 </html>
