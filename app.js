@@ -402,6 +402,7 @@ function openApp(appId) {
     case "games":     initGames();      break;
     case "badges":    initBadges();     break;
     case "settings":  initSettings();   break;
+    case "appbuilder": initAppBuilder(); break;
   }
 }
 
@@ -1533,3 +1534,4 @@ window.handleAvatarUpload     = handleAvatarUpload;
 window.handlePostImageUpload  = handlePostImageUpload;
 window.handleChatImageUpload  = handleChatImageUpload;
 window.cleanupOldMessages     = cleanupOldMessages;
+window.initAppBuilder = initAppBuilder;
