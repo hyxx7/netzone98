@@ -8,27 +8,68 @@
 /* ─────────────────────────────────────────────────────
    STORAGE HELPERS
    ───────────────────────────────────────────────────── */
-const DB = {
-  get(key) {
-    try { return JSON.parse(localStorage.getItem("nz98_" + key)); }
-    catch { return null; }
-  },
-  set(key, val) {
-    localStorage.setItem("nz98_" + key, JSON.stringify(val));
-  },
-  del(key) { localStorage.removeItem("nz98_" + key); },
+// ── FIRESTORE HELPERS (replace old DB object) ───────
 
-  getUsers()     { return DB.get("users")    || {}; },
-  setUsers(u)    { DB.set("users", u); },
-  getPosts()     { return DB.get("posts")    || {}; },
-  setPosts(p)    { DB.set("posts", p); },
-  getChat()      { return DB.get("chat")     || { rooms: { General: [], Tech: [], Gaming: [], Music: [] }, custom: [] }; },
-  setChat(c)     { DB.set("chat", c); },
-  getGuestbooks(){ return DB.get("guestbooks") || {}; },
-  setGuestbooks(g){ DB.set("guestbooks", g); },
-  getStats()     { return DB.get("stats")    || { visitors: 1337, visits: {} }; },
-  setStats(s)    { DB.set("stats", s); }
-};
+async function fsGetUser(username) {
+  const snap = await getDoc(doc(db, "users", username));
+  return snap.exists() ? snap.data() : null;
+}
+
+async function fsSetUser(username, data) {
+  await setDoc(doc(db, "users", username), data, { merge: true });
+}
+
+async function fsGetAllUsers() {
+  const snap = await getDocs(collection(db, "users"));
+  const result = {};
+  snap.forEach(d => result[d.id] = d.data());
+  return result;
+}
+
+async function fsGetPosts(username) {
+  const snap = await getDocs(
+    query(collection(db, "posts", username, "items"), orderBy("ts", "desc"))
+  );
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function fsAddPost(username, content) {
+  await addDoc(collection(db, "posts", username, "items"), {
+    content, ts: serverTimestamp()
+  });
+}
+
+async function fsDeletePost(username, postId) {
+  const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  await deleteDoc(doc(db, "posts", username, "items", postId));
+}
+
+async function fsGetGuestbook(username) {
+  const snap = await getDocs(
+    query(collection(db, "guestbooks", username, "entries"), orderBy("ts", "desc"))
+  );
+  return snap.docs.map(d => d.data());
+}
+
+async function fsAddGuestbookEntry(targetUser, by, msg) {
+  await addDoc(collection(db, "guestbooks", targetUser, "entries"), {
+    by, msg, ts: serverTimestamp()
+  });
+}
+
+async function fsGetBadges(username) {
+  const user = await fsGetUser(username);
+  return user?.badges || [];
+}
+
+async function fsAwardBadge(username, badgeId) {
+  const { arrayUnion } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  await updateDoc(doc(db, "users", username), {
+    badges: arrayUnion(badgeId)
+  });
+  const badge = ALL_BADGES.find(b => b.id === badgeId);
+  if (badge) notify("🏅 Badge earned: " + badge.name + "!");
+}
 
 /* ─────────────────────────────────────────────────────
    APP STATE
@@ -168,59 +209,66 @@ function handleGuestLogin() {
   showDesktop();
 }
 
-function handleRegister() {
+async function handleRegister() {
   const username = document.getElementById("reg-user").value.trim();
   const password = document.getElementById("reg-pass").value;
   const email    = document.getElementById("reg-email").value.trim();
   const vibe     = document.getElementById("reg-vibe").value;
 
-  if (!username || !password || !email) return showError("register-error", "Please fill in all fields.");
-  if (username.length < 3)              return showError("register-error", "Username must be at least 3 characters.");
-  if (password.length < 4)              return showError("register-error", "Password must be at least 4 characters.");
-  if (!/^[a-zA-Z0-9_]+$/.test(username)) return showError("register-error", "Username: letters, numbers, underscores only.");
+  if (!username || !password || !email) return showError("register-error", "Fill in all fields.");
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) return showError("register-error", "Letters, numbers, underscores only.");
 
-  const users = DB.getUsers();
-  if (users[username]) return showError("register-error", "Username already taken!");
+  const existing = await fsGetUser(username);
+  if (existing) return showError("register-error", "Username already taken!");
 
-  users[username] = {
-    password: btoa(password),
-    email,
-    vibe,
-    profile: {
-      displayName: username,
-      bio: "Hi, I just joined NetZone 98! 🎉",
-      avatar: "",
-      location: "Cyberspace",
-      mood: "😎 just arrived",
-      bgColor: "#000080",
-      textColor: "#ffff00",
-      layout: "classic",
-      font: "'Courier New', monospace",
-      bgImage: "",
-      music: "",
-      song: "🎵 Loading awesome music...",
-      friends: [],
-      blinkText: false,
-      marqueeText: false,
-      vhsMode: false,
-      glitchMode: false,
-      customCursor: false,
-      customCss: "",
-    },
-    joined: Date.now(),
-    isGuest: false,
-  };
-  DB.setUsers(users);
-
-  // Award "Newbie" badge
-  awardBadge(username, "newbie");
-
-  currentUser = username;
-  sessionStorage.setItem("nz98_session", username);
-  showDesktop();
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await fsSetUser(username, {
+      uid: cred.user.uid,
+      email, vibe,
+      joined: serverTimestamp(),
+      isGuest: false,
+      badges: ["newbie"],
+      profile: {
+        displayName: username,
+        bio: "Hi, I just joined NetZone 98! 🎉",
+        avatar: "", location: "Cyberspace",
+        mood: "😎 just arrived",
+        bgColor: "#000080", textColor: "#ffff00",
+        layout: "classic", font: "'Courier New', monospace",
+        bgImage: "", music: "", song: "",
+        friends: [], blinkText: false, marqueeText: false,
+        vhsMode: false, glitchMode: false,
+        customCursor: false, customCss: ""
+      }
+    });
+    currentUser = username;
+    showDesktop();
+  } catch (e) {
+    showError("register-error", e.message);
+  }
 }
 
-function handleLogout() {
+async function handleLogin() {
+  const username = document.getElementById("login-user").value.trim();
+  const password = document.getElementById("login-pass").value;
+  if (!username || !password) return showError("login-error", "Fill in all fields.");
+
+  const userData = await fsGetUser(username);
+  if (!userData) return showError("login-error", "Username not found.");
+
+  try {
+    await signInWithEmailAndPassword(auth, userData.email, password);
+    currentUser = username;
+    sessionStorage.setItem("nz98_session", username);
+    showDesktop();
+  } catch (e) {
+    showError("login-error", "Wrong password.");
+  }
+}
+
+async function handleLogout() {
+  await signOut(auth);
   currentUser = null;
   sessionStorage.removeItem("nz98_session");
   clearInterval(chatPollTimer);
@@ -342,11 +390,11 @@ function closeWindow(appId) {
     win.remove();
     delete openWindows[appId];
   }
-  if (appId === "chat" && chatPollTimer) {
-    clearInterval(chatPollTimer);
-    chatPollTimer = null;
+  if (appId === "chat") {
+    if (chatUnsub)     { chatUnsub(); chatUnsub = null; }
+    if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
   }
-  if ((appId === "games") && gameLoop) {
+  if (appId === "games" && gameLoop) {
     cancelAnimationFrame(gameLoop);
     gameLoop = null;
   }
@@ -931,80 +979,106 @@ function recordVisit(username) {
 /* ─────────────────────────────────────────────────────
    CHAT APP
    ───────────────────────────────────────────────────── */
-function initChat() {
-  renderRoomList();
-  joinRoom("General");
+let chatUnsub = null;
+const DEFAULT_ROOMS = ["General", "Tech", "Gaming", "Music"];
 
-  if (chatPollTimer) clearInterval(chatPollTimer);
-  chatPollTimer = setInterval(refreshChatMessages, 2000);
+async function initChat() {
+  await renderRoomList();
+  joinRoom("General");
 }
 
-function renderRoomList() {
+async function renderRoomList() {
   const list = document.getElementById("chat-room-list");
   if (!list) return;
-  const chat  = DB.getChat();
-  const rooms = Object.keys(chat.rooms);
-  list.innerHTML = rooms.map(r =>
+
+  // Get all rooms from Firestore (each room is a doc in "chatRooms" collection)
+  const snap = await getDocs(collection(db, "chatRooms"));
+  const rooms = new Set(DEFAULT_ROOMS);
+  snap.forEach(d => rooms.add(d.id));
+
+  list.innerHTML = [...rooms].map(r =>
     `<button class="chat-room-btn ${r === currentRoom ? 'active' : ''}" onclick="joinRoom('${r}')"># ${r}</button>`
   ).join("");
 }
 
 function joinRoom(room) {
   currentRoom = room;
+
   const title = document.getElementById("chat-room-title");
   if (title) title.textContent = "# " + room;
+
   renderRoomList();
-  refreshChatMessages();
   notify("💬 Joined #" + room);
 
-  // System message
-  const chat = DB.getChat();
-  if (!chat.rooms[room]) chat.rooms[room] = [];
-  chat.rooms[room].push({ user: "SYSTEM", msg: currentUser + " joined the room.", ts: Date.now(), system: true });
-  DB.setChat(chat);
+  // Unsubscribe from previous room listener
+  if (chatUnsub) { chatUnsub(); chatUnsub = null; }
+  // No more polling needed
+  if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+
+  // Ensure room doc exists
+  setDoc(doc(db, "chatRooms", room), { name: room }, { merge: true });
+
+  // Post system join message
+  addDoc(collection(db, "chatRooms", room, "messages"), {
+    user: "SYSTEM",
+    msg: currentUser + " joined the room.",
+    ts: serverTimestamp(),
+    system: true
+  });
+
+  // Real-time listener — updates instantly for ALL users
+  const msgsRef = query(
+    collection(db, "chatRooms", room, "messages"),
+    orderBy("ts"),
+    limit(80)
+  );
+
+  chatUnsub = onSnapshot(msgsRef, snap => {
+    const el = document.getElementById("chat-messages");
+    if (!el) return;
+
+    el.innerHTML = snap.docs.map(d => {
+      const m = d.data();
+      if (m.system) return `<div class="chat-msg chat-msg-system">*** ${m.msg}</div>`;
+      // ts can be null briefly before Firestore confirms serverTimestamp
+      const time = m.ts?.toDate
+        ? m.ts.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : "";
+      return `<div class="chat-msg"><span class="chat-msg-user">[${m.user}]</span> ${m.msg} <span style="color:#aaa;font-size:9px;">${time}</span></div>`;
+    }).join("");
+
+    el.scrollTop = el.scrollHeight;
+  });
 }
 
-function refreshChatMessages() {
-  const el = document.getElementById("chat-messages");
-  if (!el || !currentRoom) return;
-  const chat = DB.getChat();
-  const msgs = (chat.rooms[currentRoom] || []).slice(-80);
-  el.innerHTML = msgs.map(m => {
-    if (m.system) return `<div class="chat-msg chat-msg-system">*** ${m.msg}</div>`;
-    const time = new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    return `<div class="chat-msg"><span class="chat-msg-user">[${m.user}]</span> ${m.msg} <span style="color:#aaa;font-size:9px;">${time}</span></div>`;
-  }).join("");
-  el.scrollTop = el.scrollHeight;
-}
-
-function sendChatMessage() {
+async function sendChatMessage() {
   const input = document.getElementById("chat-input");
   if (!input) return;
   const msg = input.value.trim();
   if (!msg || !currentRoom) return;
 
-  const chat = DB.getChat();
-  if (!chat.rooms[currentRoom]) chat.rooms[currentRoom] = [];
-  chat.rooms[currentRoom].push({ user: currentUser, msg, ts: Date.now() });
-  // Keep last 200 messages per room
-  if (chat.rooms[currentRoom].length > 200) chat.rooms[currentRoom] = chat.rooms[currentRoom].slice(-200);
-  DB.setChat(chat);
-
   input.value = "";
-  refreshChatMessages();
-  awardBadge(currentUser, "chatter");
+
+  await addDoc(collection(db, "chatRooms", currentRoom, "messages"), {
+    user: currentUser,
+    msg,
+    ts: serverTimestamp()
+  });
+
+  fsAwardBadge(currentUser, "chatter");
 }
 
-function createRoom() {
+async function createRoom() {
   const name = document.getElementById("new-room-name").value.trim();
   if (!name) return;
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) return notify("Room name: letters/numbers/dashes only.");
-  const chat = DB.getChat();
-  if (chat.rooms[name]) return notify("Room already exists!");
-  chat.rooms[name] = [];
-  DB.setChat(chat);
+
+  const existing = await getDoc(doc(db, "chatRooms", name));
+  if (existing.exists()) return notify("Room already exists!");
+
+  await setDoc(doc(db, "chatRooms", name), { name, createdBy: currentUser, ts: serverTimestamp() });
   document.getElementById("new-room-name").value = "";
-  renderRoomList();
+  await renderRoomList();
   joinRoom(name);
   notify("🆕 Room #" + name + " created!");
 }
@@ -1420,11 +1494,3 @@ function setChecked(id, val) {
   const el = document.getElementById(id);
   if (el) el.checked = val;
 }
-
-/* =========================
-   SUPABASE INIT
-   ========================= */
-const supabase = window.supabase.createClient(
-  "https://netzone98.netlify.app/",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjanpxenBkZGd1cHlqZXVhZ3NtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTA4MTYsImV4cCI6MjA5MjM2NjgxNn0.RL3uEKaoi4sE612u0BV7DW5xGQUkMBOY2rVIYvs_jGE"
-);
