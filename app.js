@@ -99,12 +99,12 @@ async function fsRecordVisit(username) {
 }
 
 async function fsGetGlobalVisitors() {
-  const snap = await getDoc(doc(db, "stats", "__global__"));
+  const snap = await getDoc(doc(db, "stats", "global"));
   return snap.exists() ? (snap.data().visitors || 1337) : 1337;
 }
 
 async function fsIncrementGlobalVisitors() {
-  await setDoc(doc(db, "stats", "__global__"), { visitors: increment(1) }, { merge: true });
+  await setDoc(doc(db, "stats", "global"), { visitors: increment(1) }, { merge: true });
   return fsGetGlobalVisitors();
 }
 
