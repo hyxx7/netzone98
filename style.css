@@ -1233,8 +1233,6 @@ body.bg-black {
 .profile-avatar-container {
   width: 100px;
   height: 100px;
-  border-radius: 50%;
-  border: 0px solid #fff;
   overflow: hidden;
   background: #c0c0ff;
   display: flex;
