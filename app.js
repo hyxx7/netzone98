@@ -1032,7 +1032,7 @@ function joinRoom(room) {
 
   const msgsRef = query(
     collection(db, "chatRooms", room, "messages"),
-    orderBy("ts"), limit(80)
+    orderBy("ts"), limit(9999999)
   );
 
 chatUnsub = onSnapshot(msgsRef, snap => {
