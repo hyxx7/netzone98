@@ -546,6 +546,12 @@
   <!-- NOTIFICATION POPUP -->
   <div id="notification" class="hidden"></div>
 
-  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script>
+const supabase = supabase.createClient(
+  "https://YOUR_PROJECT.supabase.co",
+  "YOUR_ANON_KEY"
+);
+</script>
 </body>
 </html>
