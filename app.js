@@ -525,14 +525,12 @@ function buildProfileHTML(username, user, isOwn) {
 
 function buildClassicLayout(username, user, isOwn) {
   const p = user.profile || {};
-
-  const friends = (p.friends || []).map(f =>
-    `<span class="friend-chip" onclick="viewUserProfile('${f}')">${f}</span>`
-  ).join("");
-
+  // ...
   const avatarContent = p.avatar
-    ? `<img src="${p.avatar}" alt="avatar" style="width:80px;height:80px;object-fit:cover;" onerror="this.style.display='none'" />`
-    : "👤";
+    ? `<div class="profile-avatar-container">
+         <img src="${p.avatar}" alt="avatar" class="profile-avatar-img" />
+       </div>`
+    : `<div class="profile-avatar-container placeholder">👤</div>`;
 
   const marqueeEl = p.marqueeText
     ? `<marquee behavior="scroll" direction="left" scrollamount="2" style="color:${p.textColor || "#fff"}; font-family:VT323,monospace; font-size:18px;">
@@ -999,6 +997,19 @@ async function initChat() {
   joinRoom("General");
 }
 
+// NEW: Message cleanup function
+async function cleanupOldMessages(room) {
+  const msgsRef = collection(db, "chatRooms", room, "messages");
+  const snap = await getDocs(query(msgsRef, orderBy("ts", "desc")));
+  
+  if (snap.docs.length > 1000) {
+    const toDelete = snap.docs.slice(1000); // Keep newest 1000
+    for (const doc of toDelete) {
+      await deleteDoc(doc.ref);
+    }
+  }
+}
+
 async function renderRoomList() {
   const list = document.getElementById("chat-room-list");
   if (!list) return;
@@ -1028,6 +1039,8 @@ function joinRoom(room) {
     msg: currentUser + " joined the room.",
     ts: serverTimestamp(),
     system: true
+     // Auto-cleanup old messages
+     await cleanupOldMessages(room);
   });
 
   const msgsRef = query(
@@ -1431,6 +1444,56 @@ function setChecked(id, val) {
 }
 
 
+
+/* ─────────────────────────────────────────────────────
+   FILE UPLOAD HANDLING
+   ───────────────────────────────────────────────────── */
+async function handleAvatarUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Convert to base64
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result;
+    document.getElementById("edit-avatar").value = base64;
+    notify("🖼️ Avatar uploaded! Click Save to apply.");
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handlePostImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById("post-content").value = e.target.result;
+    notify("📸 Image loaded! Click Post to share.");
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handleChatImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const msg = e.target.result;
+    const input = document.getElementById("chat-input");
+    if (currentRoom) {
+      await addDoc(collection(db, "chatRooms", currentRoom, "messages"), {
+        user: currentUser,
+        msg,
+        ts: serverTimestamp()
+      });
+      await cleanupOldMessages(currentRoom);
+      notify("📸 Image sent!");
+    }
+  };
+  reader.readAsDataURL(file);
+}
 /* ─────────────────────────────────────────────────────
    EXPOSE FUNCTIONS TO GLOBAL SCOPE
    ───────────────────────────────────────────────────── */
@@ -1466,3 +1529,7 @@ window.applyDesktopBg       = applyDesktopBg;
 window.changePassword       = changePassword;
 window.deleteAccount        = deleteAccount;
 window.handleTerminalCmd    = handleTerminalCmd;
+window.handleAvatarUpload     = handleAvatarUpload;
+window.handlePostImageUpload  = handlePostImageUpload;
+window.handleChatImageUpload  = handleChatImageUpload;
+window.cleanupOldMessages     = cleanupOldMessages;
