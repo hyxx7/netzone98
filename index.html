@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetZone 98 — Your Corner of Cyberspace</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ░░░ BOOT SCREEN ░░░ -->
+  <div id="boot-screen">
+    <div id="boot-logo">
+      <div id="boot-logo-icon">🌐</div>
+      <div id="boot-logo-text">NetZone<span>98</span></div>
+      <div id="boot-tagline">Your Corner of Cyberspace™</div>
+    </div>
+    <div id="boot-bar-wrap">
+      <div id="boot-bar"></div>
+    </div>
+    <div id="boot-status">Loading system files...</div>
+  </div>
+
+  <!-- ░░░ DESKTOP ░░░ -->
+  <div id="desktop" class="hidden">
+
+    <!-- Taskbar -->
+    <div id="taskbar">
+      <button id="start-btn" onclick="toggleStartMenu()">
+        <span>🌐</span> Start
+      </button>
+      <div id="taskbar-windows"></div>
+      <div id="taskbar-tray">
+        <span id="tray-user-info"></span>
+        <span id="tray-clock"></span>
+      </div>
+    </div>
+
+    <!-- Start Menu -->
+    <div id="start-menu" class="hidden">
+      <div id="start-menu-header">
+        <div id="start-avatar-wrap">
+          <div id="start-avatar">👤</div>
+        </div>
+        <span id="start-username">Guest User</span>
+      </div>
+      <div id="start-menu-items">
+        <button class="start-item" onclick="openApp('profile'); toggleStartMenu()">👤 My Profile</button>
+        <button class="start-item" onclick="openApp('explore'); toggleStartMenu()">🔭 Explore NetZone</button>
+        <button class="start-item" onclick="openApp('chat'); toggleStartMenu()">💬 Chat Rooms</button>
+        <button class="start-item" onclick="openApp('guestbook'); toggleStartMenu()">📖 My Guestbook</button>
+        <button class="start-item" onclick="openApp('games'); toggleStartMenu()">🎮 Mini Games</button>
+        <button class="start-item" onclick="openApp('badges'); toggleStartMenu()">🏅 Badges</button>
+        <hr class="start-divider"/>
+        <button class="start-item" onclick="openApp('settings'); toggleStartMenu()">⚙️ Settings</button>
+        <button class="start-item danger" onclick="handleLogout()">🚪 Log Out</button>
+      </div>
+    </div>
+
+    <!-- Desktop Icons -->
+    <div id="desktop-icons">
+      <div class="desk-icon" ondblclick="openApp('profile')">
+        <div class="desk-icon-img">👤</div>
+        <div class="desk-icon-label">My Profile</div>
+      </div>
+      <div class="desk-icon" ondblclick="openApp('explore')">
+        <div class="desk-icon-img">🔭</div>
+        <div class="desk-icon-label">Explore</div>
+      </div>
+      <div class="desk-icon" ondblclick="openApp('chat')">
+        <div class="desk-icon-img">💬</div>
+        <div class="desk-icon-label">Chat Rooms</div>
+      </div>
+      <div class="desk-icon" ondblclick="openApp('games')">
+        <div class="desk-icon-img">🎮</div>
+        <div class="desk-icon-label">Mini Games</div>
+      </div>
+      <div class="desk-icon" ondblclick="openApp('guestbook')">
+        <div class="desk-icon-img">📖</div>
+        <div class="desk-icon-label">Guestbook</div>
+      </div>
+      <div class="desk-icon" ondblclick="openApp('badges')">
+        <div class="desk-icon-img">🏅</div>
+        <div class="desk-icon-label">Badges</div>
+      </div>
+      <div class="desk-icon" ondblclick="openApp('settings')">
+        <div class="desk-icon-img">⚙️</div>
+        <div class="desk-icon-label">Settings</div>
+      </div>
+    </div>
+
+    <!-- Window Container -->
+    <div id="window-layer"></div>
+
+  </div><!-- /desktop -->
+
+  <!-- ░░░ AUTH SCREEN ░░░ -->
+  <div id="auth-screen" class="hidden">
+    <div class="auth-window window">
+      <div class="window-titlebar">
+        <span class="window-title">🌐 Welcome to NetZone 98</span>
+      </div>
+      <div class="window-body">
+        <div id="auth-banner">
+          <marquee behavior="scroll" direction="left" scrollamount="3">
+            ★ Welcome to NetZone 98 — The Internet's Coolest Social Hub! ★ &nbsp;&nbsp;&nbsp;
+            ★ Create YOUR page! ★ &nbsp;&nbsp;&nbsp;
+            ★ Chat with friends! ★ &nbsp;&nbsp;&nbsp;
+            ★ Collect badges! ★ &nbsp;&nbsp;&nbsp;
+          </marquee>
+        </div>
+
+        <div id="auth-tabs">
+          <div class="tab-bar">
+            <div class="tab active" id="tab-login" onclick="switchAuthTab('login')">Login</div>
+            <div class="tab" id="tab-register" onclick="switchAuthTab('register')">Register</div>
+          </div>
+          <div class="tab-content">
+
+            <!-- LOGIN FORM -->
+            <div id="login-form">
+              <table class="form-table">
+                <tr>
+                  <td class="form-label">Username:</td>
+                  <td><input class="xp-input" id="login-user" type="text" placeholder="your_cool_name" /></td>
+                </tr>
+                <tr>
+                  <td class="form-label">Password:</td>
+                  <td><input class="xp-input" id="login-pass" type="password" placeholder="••••••••" /></td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    <div style="display:flex; gap:6px; margin-top:6px;">
+                      <button class="xp-btn primary" onclick="handleLogin()">Login</button>
+                      <button class="xp-btn" onclick="handleGuestLogin()">Enter as Guest</button>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              <div id="login-error" class="form-error hidden"></div>
+            </div>
+
+            <!-- REGISTER FORM -->
+            <div id="register-form" class="hidden">
+              <table class="form-table">
+                <tr>
+                  <td class="form-label">Username:</td>
+                  <td><input class="xp-input" id="reg-user" type="text" placeholder="your_cool_name" /></td>
+                </tr>
+                <tr>
+                  <td class="form-label">Password:</td>
+                  <td><input class="xp-input" id="reg-pass" type="password" placeholder="min 4 chars" /></td>
+                </tr>
+                <tr>
+                  <td class="form-label">Email:</td>
+                  <td><input class="xp-input" id="reg-email" type="email" placeholder="cool@email.com" /></td>
+                </tr>
+                <tr>
+                  <td class="form-label">Vibe:</td>
+                  <td>
+                    <select class="xp-input" id="reg-vibe">
+                      <option value="hacker">💻 Hacker</option>
+                      <option value="artist">🎨 Artist</option>
+                      <option value="gamer">🎮 Gamer</option>
+                      <option value="musician">🎸 Musician</option>
+                      <option value="poet">✍️ Poet</option>
+                      <option value="random">🌀 Random</option>
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    <button class="xp-btn primary" onclick="handleRegister()" style="margin-top:6px;">
+                      Create Account!
+                    </button>
+                  </td>
+                </tr>
+              </table>
+              <div id="register-error" class="form-error hidden"></div>
+            </div>
+
+          </div><!-- /tab-content -->
+        </div><!-- /auth-tabs -->
+
+        <div id="auth-footer">
+          <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=" alt="" />
+          <span>🔒 NetZone 98 Security Certificate Valid</span>
+          <span>|</span>
+          <span>Visitors today: <b id="visitor-count">????</b></span>
+        </div>
+      </div>
+    </div>
+  </div><!-- /auth-screen -->
+
+  <!-- ░░░ WINDOW TEMPLATES (hidden, cloned by JS) ░░░ -->
+
+  <!-- PROFILE WINDOW -->
+  <template id="tpl-profile">
+    <div class="app-window window" id="win-profile" data-appid="profile">
+      <div class="window-titlebar">
+        <img src="" class="window-icon" />
+        <span class="window-title">👤 My Profile</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('profile')">_</button>
+          <button class="win-btn close" onclick="closeWindow('profile')">✕</button>
+        </div>
+      </div>
+      <div class="window-body profile-body">
+
+        <div class="tab-bar">
+          <div class="tab active" onclick="switchProfileTab('view', this)">View Profile</div>
+          <div class="tab" onclick="switchProfileTab('edit', this)">Edit Profile</div>
+          <div class="tab" onclick="switchProfileTab('customize', this)">Customize</div>
+          <div class="tab" onclick="switchProfileTab('posts', this)">Posts</div>
+        </div>
+
+        <!-- VIEW TAB -->
+        <div id="profile-tab-view" class="profile-tab tab-content">
+          <div id="profile-preview-area"></div>
+        </div>
+
+        <!-- EDIT TAB -->
+        <div id="profile-tab-edit" class="profile-tab tab-content hidden">
+          <table class="form-table">
+            <tr>
+              <td class="form-label">Display Name:</td>
+              <td><input class="xp-input" id="edit-displayname" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">Avatar URL:</td>
+              <td><input class="xp-input" id="edit-avatar" placeholder="https://...gif" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">Bio:</td>
+              <td><textarea class="xp-input" id="edit-bio" rows="3" placeholder="Tell the world about yourself..."></textarea></td>
+            </tr>
+            <tr>
+              <td class="form-label">Location:</td>
+              <td><input class="xp-input" id="edit-location" placeholder="Cyberspace, Internet" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">Mood:</td>
+              <td><input class="xp-input" id="edit-mood" placeholder="e.g. 💀 totally rad" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">BG Music URL:</td>
+              <td><input class="xp-input" id="edit-music" placeholder="https://...mp3" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">Top Friends:</td>
+              <td><input class="xp-input" id="edit-friends" placeholder="user1, user2, user3" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">Song:</td>
+              <td><input class="xp-input" id="edit-song" placeholder="🎵 Current jam title" /></td>
+            </tr>
+            <tr>
+              <td></td>
+              <td>
+                <div style="display:flex; gap:6px; margin-top:8px;">
+                  <button class="xp-btn primary" onclick="saveProfile()">💾 Save Profile</button>
+                  <button class="xp-btn" onclick="exportProfile()">📁 Export .HTML</button>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- CUSTOMIZE TAB -->
+        <div id="profile-tab-customize" class="profile-tab tab-content hidden">
+          <div class="section-title">🎨 Profile Theme</div>
+          <table class="form-table">
+            <tr>
+              <td class="form-label">Layout:</td>
+              <td>
+                <select class="xp-input" id="cust-layout">
+                  <option value="classic">Classic Webpage</option>
+                  <option value="terminal">💻 Terminal / Hacker</option>
+                  <option value="room">🛋️ Digital Room</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td class="form-label">BG Color:</td>
+              <td><input class="xp-input" id="cust-bgcolor" type="color" value="#000080" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">Text Color:</td>
+              <td><input class="xp-input" id="cust-textcolor" type="color" value="#ffff00" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">BG Image URL:</td>
+              <td><input class="xp-input" id="cust-bgimage" placeholder="https://...gif (tiled)" /></td>
+            </tr>
+            <tr>
+              <td class="form-label">Font:</td>
+              <td>
+                <select class="xp-input" id="cust-font">
+                  <option value="'Courier New', monospace">Courier New</option>
+                  <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+                  <option value="'Times New Roman', serif">Times New Roman</option>
+                  <option value="'Impact', sans-serif">Impact</option>
+                  <option value="'VT323', monospace">VT323 (Retro)</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td class="form-label">Special FX:</td>
+              <td>
+                <label><input type="checkbox" id="cust-blink" /> ✨ Blinking Text</label><br/>
+                <label><input type="checkbox" id="cust-marquee" /> 📜 Scrolling Marquee</label><br/>
+                <label><input type="checkbox" id="cust-vhs" /> 📼 VHS Scanlines</label><br/>
+                <label><input type="checkbox" id="cust-glitch" /> ⚡ Glitch Mode</label><br/>
+                <label><input type="checkbox" id="cust-cursor" /> 🖱️ Custom Star Cursor</label>
+              </td>
+            </tr>
+            <tr>
+              <td class="form-label">Custom CSS:</td>
+              <td><textarea class="xp-input" id="cust-css" rows="4" placeholder="/* Your custom CSS here */"></textarea></td>
+            </tr>
+            <tr>
+              <td></td>
+              <td><button class="xp-btn primary" onclick="saveCustomization()" style="margin-top:8px;">✅ Apply Theme</button></td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- POSTS TAB -->
+        <div id="profile-tab-posts" class="profile-tab tab-content hidden">
+          <div class="section-title">📝 Post Something</div>
+          <textarea class="xp-input" id="post-content" rows="3" placeholder="What's on your mind? GIF URLs work too! 🎉"></textarea>
+          <div style="margin-top:6px; display:flex; gap:6px;">
+            <button class="xp-btn primary" onclick="submitPost()">📤 Post It!</button>
+          </div>
+          <div class="section-title" style="margin-top:12px;">📋 My Posts</div>
+          <div id="my-posts-list"></div>
+        </div>
+
+      </div>
+    </div>
+  </template>
+
+  <!-- EXPLORE WINDOW -->
+  <template id="tpl-explore">
+    <div class="app-window window" id="win-explore" data-appid="explore">
+      <div class="window-titlebar green-bar">
+        <span class="window-title">🔭 Explore NetZone 98</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('explore')">_</button>
+          <button class="win-btn close" onclick="closeWindow('explore')">✕</button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+          <button class="xp-btn primary" onclick="loadRandomProfile()">🎲 Random Site!</button>
+          <button class="xp-btn" onclick="loadAllUsers()">👥 All Users</button>
+          <button class="xp-btn" onclick="loadTopProfiles()">🏆 Top Visited</button>
+        </div>
+        <div id="explore-content">
+          <div class="explore-hint">Click a button above to start exploring!</div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- CHAT WINDOW -->
+  <template id="tpl-chat">
+    <div class="app-window window" id="win-chat" data-appid="chat" style="width:520px; min-height:420px;">
+      <div class="window-titlebar">
+        <span class="window-title">💬 NetZone Chat — IRC Style</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('chat')">_</button>
+          <button class="win-btn close" onclick="closeWindow('chat')">✕</button>
+        </div>
+      </div>
+      <div class="window-body" style="display:flex; gap:6px; height:360px;">
+        <div id="chat-rooms-panel">
+          <div class="section-title">Rooms</div>
+          <div id="chat-room-list"></div>
+          <hr style="margin:6px 0;" />
+          <div class="section-title">Create Room</div>
+          <input class="xp-input" id="new-room-name" placeholder="Room name" style="margin-bottom:4px;" />
+          <button class="xp-btn" onclick="createRoom()" style="width:100%">+ New</button>
+        </div>
+        <div id="chat-main" style="flex:1; display:flex; flex-direction:column;">
+          <div id="chat-room-title" class="section-title">Select a room →</div>
+          <div id="chat-messages"></div>
+          <div id="chat-input-row" style="display:flex; gap:4px; margin-top:4px;">
+            <input class="xp-input" id="chat-input" placeholder="Type a message... (Enter to send)" onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1;" />
+            <button class="xp-btn primary" onclick="sendChatMessage()">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- GUESTBOOK WINDOW -->
+  <template id="tpl-guestbook">
+    <div class="app-window window" id="win-guestbook" data-appid="guestbook">
+      <div class="window-titlebar red-bar">
+        <span class="window-title">📖 My Guestbook</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('guestbook')">_</button>
+          <button class="win-btn close" onclick="closeWindow('guestbook')">✕</button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div class="guestbook-banner">
+          ✨ Sign My Guestbook! ✨
+        </div>
+        <div class="section-title">Leave a message:</div>
+        <textarea class="xp-input" id="guestbook-msg" rows="3" placeholder="Write something nice..."></textarea>
+        <button class="xp-btn primary" onclick="signGuestbook()" style="margin-top:6px;">✍️ Sign It!</button>
+        <div class="section-title" style="margin-top:12px;">📜 Entries</div>
+        <div id="guestbook-entries"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- GAMES WINDOW -->
+  <template id="tpl-games">
+    <div class="app-window window" id="win-games" data-appid="games" style="width:520px;">
+      <div class="window-titlebar">
+        <span class="window-title">🎮 NetZone Arcade</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('games')">_</button>
+          <button class="win-btn close" onclick="closeWindow('games')">✕</button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <button class="xp-btn" onclick="loadGame('snake')">🐍 Snake</button>
+          <button class="xp-btn" onclick="loadGame('pong')">🏓 Pong</button>
+          <button class="xp-btn" onclick="loadGame('memory')">🧠 Memory</button>
+        </div>
+        <div id="game-area"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- BADGES WINDOW -->
+  <template id="tpl-badges">
+    <div class="app-window window" id="win-badges" data-appid="badges">
+      <div class="window-titlebar">
+        <span class="window-title">🏅 Achievements & Badges</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('badges')">_</button>
+          <button class="win-btn close" onclick="closeWindow('badges')">✕</button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div id="badges-grid"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- SETTINGS WINDOW -->
+  <template id="tpl-settings">
+    <div class="app-window window" id="win-settings" data-appid="settings">
+      <div class="window-titlebar">
+        <span class="window-title">⚙️ System Settings</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn" onclick="minimizeWindow('settings')">_</button>
+          <button class="win-btn close" onclick="closeWindow('settings')">✕</button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div class="section-title">🖥️ Desktop Settings</div>
+        <table class="form-table">
+          <tr>
+            <td class="form-label">Desktop BG:</td>
+            <td>
+              <select class="xp-input" id="set-bg" onchange="applyDesktopBg()">
+                <option value="default">Default (XP Blue)</option>
+                <option value="space">🌌 Space</option>
+                <option value="matrix">💚 Matrix</option>
+                <option value="sunset">🌅 Sunset</option>
+                <option value="black">⬛ Pure Black</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td class="form-label">Sound FX:</td>
+            <td><label><input type="checkbox" id="set-sound" checked /> Enable startup sounds</label></td>
+          </tr>
+        </table>
+        <div class="section-title" style="margin-top:12px;">🔐 Account</div>
+        <table class="form-table">
+          <tr>
+            <td class="form-label">Change Password:</td>
+            <td>
+              <input class="xp-input" id="set-oldpass" type="password" placeholder="Old password" style="margin-bottom:4px;" />
+              <input class="xp-input" id="set-newpass" type="password" placeholder="New password" />
+            </td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>
+              <div style="display:flex; gap:6px; margin-top:6px;">
+                <button class="xp-btn primary" onclick="changePassword()">Save</button>
+                <button class="xp-btn danger" onclick="deleteAccount()">🗑️ Delete Account</button>
+              </div>
+            </td>
+          </tr>
+        </table>
+        <div id="settings-msg" class="form-error hidden" style="color:green;"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- VIEW OTHER USER WINDOW -->
+  <template id="tpl-viewuser">
+    <div class="app-window window" id="win-viewuser" data-appid="viewuser">
+      <div class="window-titlebar">
+        <span class="window-title" id="viewuser-title">👤 User Profile</span>
+        <div style="margin-left:auto; display:flex; gap:2px;">
+          <button class="win-btn close" onclick="closeWindow('viewuser')">✕</button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div id="viewuser-content"></div>
+        <div style="margin-top:8px; display:flex; gap:6px;">
+          <button class="xp-btn" onclick="signOtherGuestbook()">✍️ Sign Guestbook</button>
+          <button class="xp-btn" onclick="followUser()">⭐ Follow</button>
+        </div>
+        <div id="viewuser-guestbook-form" class="hidden" style="margin-top:8px;">
+          <textarea class="xp-input" id="viewuser-gb-msg" rows="2" placeholder="Leave a message..."></textarea>
+          <button class="xp-btn primary" onclick="submitOtherGuestbook()" style="margin-top:4px;">✍️ Submit</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- VHS OVERLAY -->
+  <div id="vhs-overlay" class="hidden">
+    <div class="scanlines"></div>
+    <div class="vhs-noise"></div>
+    <div id="vhs-timestamp"></div>
+  </div>
+
+  <!-- GLITCH OVERLAY -->
+  <div id="glitch-overlay" class="hidden"></div>
+
+  <!-- NOTIFICATION POPUP -->
+  <div id="notification" class="hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

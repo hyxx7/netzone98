@@ -1,0 +1,1229 @@
+/* =====================================================
+   NETZONE 98 — STYLE.CSS
+   Windows XP / GeoCities Retro Aesthetic
+   ===================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap');
+
+/* ── RESET & BASE ── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --xp-silver:       #d4d0c8;
+  --xp-silver-dark:  #bab5a4;
+  --xp-silver-light: #f0ece0;
+  --bevel-light:     #ffffff;
+  --bevel-mid:       #808080;
+  --bevel-dark:      #404040;
+  --win-bg:          #3a6ea5;
+  --win-title-from:  #1d7bd8;
+  --win-title-to:    #0050cd;
+  --xp-green-from:   #1fa833;
+  --xp-green-to:     #007a1f;
+  --xp-red-from:     #cc3300;
+  --xp-red-to:       #990000;
+  --text-dark:       #000000;
+  --text-link:       #0000cc;
+}
+
+body {
+  font-family: 'Tahoma', 'MS Sans Serif', sans-serif;
+  font-size: 11px;
+  background-color: var(--win-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='2' height='2' fill='%233a6ea5'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23316090'/%3E%3C/svg%3E");
+  min-height: 100vh;
+  overflow-x: hidden;
+  color: var(--text-dark);
+}
+
+.hidden { display: none !important; }
+
+/* ── SCROLLBARS (Chrome/Edge) ── */
+::-webkit-scrollbar { width: 16px; height: 16px; }
+::-webkit-scrollbar-track {
+  background: var(--xp-silver);
+  border: 1px inset var(--bevel-mid);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--xp-silver);
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+}
+::-webkit-scrollbar-button {
+  background: var(--xp-silver);
+  height: 16px;
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+}
+
+/* =====================================================
+   BOOT SCREEN
+   ===================================================== */
+#boot-screen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  gap: 24px;
+}
+
+#boot-logo {
+  text-align: center;
+}
+
+#boot-logo-icon {
+  font-size: 64px;
+  animation: bootPulse 1s ease-in-out infinite;
+}
+
+@keyframes bootPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.1); opacity: 0.7; }
+}
+
+#boot-logo-text {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 36px;
+  color: #00aaff;
+  text-shadow: 0 0 20px #0066ff, 0 0 40px #003399;
+  letter-spacing: 4px;
+}
+
+#boot-logo-text span {
+  color: #ff6600;
+  text-shadow: 0 0 20px #ff3300;
+}
+
+#boot-tagline {
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  color: #aaaaaa;
+  margin-top: 8px;
+}
+
+#boot-bar-wrap {
+  width: 300px;
+  height: 20px;
+  background: #111;
+  border: 2px inset #444;
+  overflow: hidden;
+}
+
+#boot-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(to right, #0055cc, #00aaff);
+  transition: width 0.15s linear;
+  box-shadow: 0 0 8px #0088ff;
+}
+
+#boot-status {
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  color: #888;
+  min-height: 20px;
+}
+
+/* =====================================================
+   DESKTOP
+   ===================================================== */
+#desktop {
+  position: relative;
+  width: 100vw;
+  min-height: 100vh;
+  padding-bottom: 36px;
+}
+
+/* ── Taskbar ── */
+#taskbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 32px;
+  background: linear-gradient(to bottom, #2a5fa0 0%, #1a4080 40%, #1a4a98 100%);
+  border-top: 2px solid #6090d0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  z-index: 1000;
+}
+
+#start-btn {
+  height: 26px;
+  padding: 0 10px 0 6px;
+  background: linear-gradient(to bottom, #5aad5a 0%, #3a8a3a 50%, #2a7a2a 100%);
+  border: 2px solid;
+  border-color: #80d080 #1a4a1a #1a4a1a #80d080;
+  color: white;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 0 8px 8px 0;
+  text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+}
+
+#start-btn:hover {
+  background: linear-gradient(to bottom, #6aba6a 0%, #4a9a4a 50%, #3a8a3a 100%);
+}
+
+#taskbar-windows {
+  flex: 1;
+  display: flex;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.taskbar-btn {
+  height: 22px;
+  padding: 0 8px;
+  background: linear-gradient(to bottom, #3a6aaa 0%, #1a4a88 100%);
+  border: 1px solid;
+  border-color: #6090d0 #102848 #102848 #6090d0;
+  color: white;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 10px;
+  cursor: pointer;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskbar-btn:hover, .taskbar-btn.active {
+  background: linear-gradient(to bottom, #4a7abb 0%, #2a5a98 100%);
+}
+
+#taskbar-tray {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,60,0.3);
+  border: 1px inset #1a3a70;
+  padding: 2px 8px;
+  height: 24px;
+  font-size: 10px;
+  color: white;
+}
+
+#tray-clock {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 10px;
+  color: white;
+}
+
+/* ── Start Menu ── */
+#start-menu {
+  position: fixed;
+  bottom: 32px;
+  left: 0;
+  width: 220px;
+  background: #d4d0c8;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  box-shadow: 3px 3px 8px rgba(0,0,0,0.5);
+  z-index: 2000;
+  overflow: hidden;
+}
+
+#start-menu-header {
+  background: linear-gradient(to bottom, #1d7bd8 0%, #0050cd 100%);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#start-avatar {
+  width: 36px; height: 36px;
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+#start-username {
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+#start-menu-items {
+  padding: 4px 0;
+}
+
+.start-item {
+  display: block;
+  width: 100%;
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-dark);
+}
+
+.start-item:hover {
+  background: #0a246a;
+  color: white;
+}
+
+.start-item.danger:hover { background: #cc0000; }
+
+.start-divider {
+  border: none;
+  border-top: 1px solid var(--bevel-mid);
+  margin: 4px 8px;
+}
+
+/* ── Desktop Icons ── */
+#desktop-icons {
+  position: absolute;
+  top: 16px; left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.desk-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 60px;
+  cursor: pointer;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+
+.desk-icon:hover {
+  background: rgba(0, 80, 200, 0.3);
+  border-color: rgba(100, 160, 255, 0.8);
+}
+
+.desk-icon:active {
+  background: rgba(0, 80, 200, 0.5);
+}
+
+.desk-icon-img { font-size: 32px; line-height: 1; }
+
+.desk-icon-label {
+  font-size: 10px;
+  color: white;
+  text-align: center;
+  text-shadow: 1px 1px 2px black, -1px -1px 2px black;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+/* =====================================================
+   AUTH SCREEN
+   ===================================================== */
+#auth-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--win-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='2' height='2' fill='%233a6ea5'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23316090'/%3E%3C/svg%3E");
+  z-index: 5000;
+}
+
+.auth-window {
+  width: 420px;
+  max-width: 95vw;
+}
+
+#auth-banner {
+  background: #000080;
+  color: #ffff00;
+  padding: 4px 0;
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  margin-bottom: 10px;
+  border: 2px inset #0000cc;
+}
+
+#auth-tabs { margin-bottom: 8px; }
+
+#auth-footer {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--bevel-mid);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #555;
+}
+
+/* =====================================================
+   WINDOWS / UI COMPONENTS
+   ===================================================== */
+
+/* ── Window Base ── */
+.window {
+  background: var(--xp-silver);
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  box-shadow: 3px 3px 10px rgba(0,0,0,0.6);
+}
+
+/* ── Title Bar ── */
+.window-titlebar {
+  background: linear-gradient(to bottom, var(--win-title-from) 0%, var(--win-title-to) 100%);
+  padding: 3px 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  cursor: move;
+  user-select: none;
+}
+
+.window-titlebar.green-bar {
+  background: linear-gradient(to bottom, var(--xp-green-from) 0%, var(--xp-green-to) 100%);
+}
+
+.window-titlebar.red-bar {
+  background: linear-gradient(to bottom, var(--xp-red-from) 0%, var(--xp-red-to) 100%);
+}
+
+.window-title {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Window Control Buttons ── */
+.win-btn {
+  width: 18px; height: 14px;
+  background: var(--xp-silver);
+  border: 1px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  font-size: 9px;
+  font-weight: bold;
+  font-family: 'Tahoma', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.win-btn:hover { background: #e0e8f8; }
+.win-btn.close:hover { background: #dd0000; color: white; }
+
+/* ── Window Body ── */
+.window-body {
+  padding: 8px;
+  background: var(--xp-silver);
+  overflow: auto;
+}
+
+/* ── App Windows (draggable) ── */
+.app-window {
+  position: absolute;
+  width: 480px;
+  min-height: 200px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+}
+
+.app-window .window-body {
+  flex: 1;
+  overflow: auto;
+  max-height: calc(80vh - 28px);
+}
+
+/* ── Buttons ── */
+.xp-btn {
+  background: linear-gradient(to bottom, #f0f0ea 0%, #d4d0c8 100%);
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  padding: 3px 12px;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  color: #000;
+  min-width: 60px;
+  white-space: nowrap;
+}
+
+.xp-btn:hover {
+  background: linear-gradient(to bottom, #e0eafc 0%, #c0d0e8 100%);
+}
+
+.xp-btn:active {
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+  padding: 4px 11px 2px 13px;
+}
+
+.xp-btn.primary {
+  background: linear-gradient(to bottom, #d8e8fc 0%, #9ab8f0 100%);
+  font-weight: bold;
+}
+
+.xp-btn.danger {
+  background: linear-gradient(to bottom, #fcd8d8 0%, #f09a9a 100%);
+}
+
+/* ── Inputs ── */
+.xp-input {
+  border: 2px solid;
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+  background: white;
+  padding: 2px 4px;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  outline: none;
+  width: 100%;
+}
+
+.xp-input:focus {
+  outline: 1px dotted #0000cc;
+  outline-offset: -3px;
+}
+
+textarea.xp-input { resize: vertical; min-height: 50px; }
+
+select.xp-input { cursor: pointer; }
+
+/* ── Tabs ── */
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  position: relative;
+  z-index: 1;
+  flex-wrap: wrap;
+}
+
+.tab {
+  background: linear-gradient(to bottom, #e8e8e4 0%, #d0ccc0 100%);
+  border: 2px solid;
+  border-bottom: none;
+  border-color: var(--bevel-light) var(--bevel-dark) transparent var(--bevel-light);
+  padding: 3px 10px;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  color: #444;
+}
+
+.tab:hover { background: linear-gradient(to bottom, #f0f0ec 0%, #e0dcd4 100%); }
+
+.tab.active {
+  background: var(--xp-silver);
+  color: #000;
+  font-weight: bold;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--xp-silver) var(--bevel-light);
+  margin-bottom: -2px;
+  padding-bottom: 5px;
+}
+
+.tab-content {
+  border: 2px solid;
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+  padding: 8px;
+  background: var(--xp-silver);
+  margin-top: 0;
+}
+
+/* ── Forms ── */
+.form-table { width: 100%; border-collapse: collapse; }
+
+.form-table td { padding: 3px 4px; vertical-align: middle; }
+
+.form-label {
+  width: 110px;
+  font-weight: bold;
+  color: #333;
+  white-space: nowrap;
+}
+
+.form-error {
+  color: red;
+  font-size: 10px;
+  margin-top: 4px;
+  padding: 2px 4px;
+  background: #fff0f0;
+  border: 1px solid red;
+}
+
+/* ── Section Title ── */
+.section-title {
+  font-weight: bold;
+  color: #000080;
+  border-bottom: 1px solid var(--bevel-mid);
+  padding-bottom: 2px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+/* =====================================================
+   PROFILE WINDOW
+   ===================================================== */
+.profile-body { min-width: 0; }
+
+.profile-tab { min-height: 200px; }
+
+/* ── Profile Preview (Classic Layout) ── */
+.profile-classic {
+  min-height: 300px;
+  padding: 8px;
+  position: relative;
+  overflow: auto;
+}
+
+.profile-header-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.profile-avatar {
+  width: 80px; height: 80px;
+  border: 3px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  object-fit: cover;
+  background: #c0c0ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  flex-shrink: 0;
+}
+
+.profile-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+
+.profile-name {
+  font-family: 'VT323', monospace;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.profile-mood { font-style: italic; font-size: 11px; color: #555; }
+
+.profile-location { font-size: 10px; color: #666; }
+
+.profile-visitor {
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  text-align: right;
+  color: #cc0000;
+}
+
+.profile-bio-box {
+  border: 2px inset;
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+  padding: 6px;
+  background: white;
+  margin-bottom: 8px;
+  min-height: 40px;
+  word-break: break-word;
+}
+
+.profile-section-header {
+  background: #000080;
+  color: #ffff00;
+  padding: 2px 6px;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.profile-top-friends {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.friend-chip {
+  background: #d0d8f8;
+  border: 1px solid #8898cc;
+  padding: 2px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  color: var(--text-link);
+}
+
+.friend-chip:hover {
+  background: #b8c8f0;
+  text-decoration: underline;
+}
+
+.profile-song {
+  background: #001a00;
+  color: #00ff44;
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  padding: 4px 8px;
+  border: 2px inset #004400;
+  margin-bottom: 8px;
+}
+
+.profile-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+/* ── Terminal Layout ── */
+.profile-terminal {
+  background: #0a0a0a;
+  color: #00ff44;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  padding: 12px;
+  min-height: 300px;
+  border: 2px inset #003300;
+}
+
+.terminal-cursor {
+  display: inline-block;
+  width: 10px; height: 2px;
+  background: #00ff44;
+  animation: blink 0.8s step-end infinite;
+  vertical-align: middle;
+}
+
+.terminal-line { margin-bottom: 4px; }
+
+.terminal-cmd-input {
+  background: transparent;
+  border: none;
+  color: #00ff44;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  outline: none;
+  width: calc(100% - 40px);
+}
+
+/* ── Digital Room Layout ── */
+.profile-room {
+  background: #1a1a2e;
+  min-height: 340px;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid #333;
+}
+
+.room-floor {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 60px;
+  background: repeating-linear-gradient(
+    45deg,
+    #2a2a2a 0px, #2a2a2a 20px,
+    #333 20px, #333 40px
+  );
+}
+
+.room-wall {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: calc(100% - 60px);
+  background: linear-gradient(to bottom, #0a0a2e 0%, #1a1a4a 100%);
+}
+
+.room-object {
+  position: absolute;
+  font-size: 40px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  user-select: none;
+}
+
+.room-object:hover { transform: scale(1.1) rotate(5deg); }
+
+.room-name-plate {
+  position: absolute;
+  bottom: 65px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,100,0.8);
+  color: #fff;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  padding: 2px 10px;
+  border: 2px solid #88f;
+  white-space: nowrap;
+}
+
+/* =====================================================
+   EXPLORE / USER CARDS
+   ===================================================== */
+.explore-hint {
+  color: #888;
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
+}
+
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--bevel-mid);
+  margin-bottom: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.user-card:hover { background: #e8eef8; }
+
+.user-card-avatar {
+  width: 36px; height: 36px;
+  background: #c0c0ff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  border: 1px solid var(--bevel-mid);
+}
+
+.user-card-info { flex: 1; overflow: hidden; }
+
+.user-card-name { font-weight: bold; font-size: 11px; }
+
+.user-card-bio {
+  font-size: 10px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-card-visits {
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  color: #cc0000;
+}
+
+/* =====================================================
+   CHAT
+   ===================================================== */
+#chat-rooms-panel {
+  width: 130px;
+  flex-shrink: 0;
+  border-right: 2px solid var(--bevel-mid);
+  padding-right: 6px;
+  overflow-y: auto;
+}
+
+.chat-room-btn {
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  background: var(--xp-silver);
+  border: 1px solid transparent;
+  text-align: left;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 10px;
+  cursor: pointer;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-room-btn:hover { background: #e0e8f8; border-color: #8898cc; }
+.chat-room-btn.active { background: #d0d8f8; font-weight: bold; border-color: #5060aa; }
+
+#chat-messages {
+  flex: 1;
+  background: white;
+  border: 2px inset var(--bevel-mid);
+  padding: 4px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.chat-msg {
+  margin-bottom: 3px;
+  font-size: 11px;
+  word-break: break-word;
+}
+
+.chat-msg-user {
+  color: #0000cc;
+  font-weight: bold;
+}
+
+.chat-msg-system {
+  color: #888;
+  font-style: italic;
+  font-size: 10px;
+}
+
+/* =====================================================
+   GUESTBOOK
+   ===================================================== */
+.guestbook-banner {
+  font-family: 'VT323', monospace;
+  font-size: 24px;
+  text-align: center;
+  color: #cc00cc;
+  text-shadow: 2px 2px 0 #880088;
+  padding: 4px;
+  margin-bottom: 8px;
+  background: #fff0ff;
+  border: 2px dashed #cc00cc;
+}
+
+.gb-entry {
+  background: white;
+  border: 1px solid var(--bevel-mid);
+  padding: 6px;
+  margin-bottom: 6px;
+}
+
+.gb-entry-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #555;
+  margin-bottom: 3px;
+}
+
+.gb-entry-user {
+  color: var(--text-link);
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.gb-entry-user:hover { text-decoration: underline; }
+
+.gb-entry-text { font-size: 11px; word-break: break-word; }
+
+/* =====================================================
+   GAMES
+   ===================================================== */
+#game-area {
+  background: #000;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #00ff44;
+  font-family: 'VT323', monospace;
+}
+
+canvas {
+  display: block;
+  margin: 0 auto;
+  border: 2px solid #00ff44;
+}
+
+.game-score {
+  font-size: 20px;
+  margin: 4px;
+}
+
+.game-msg {
+  font-size: 18px;
+  text-align: center;
+  color: #ffff00;
+}
+
+/* =====================================================
+   BADGES
+   ===================================================== */
+#badges-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 4px;
+}
+
+.badge-card {
+  background: white;
+  border: 2px solid var(--bevel-mid);
+  padding: 8px;
+  text-align: center;
+}
+
+.badge-card.locked {
+  opacity: 0.4;
+  filter: grayscale(100%);
+}
+
+.badge-icon { font-size: 28px; margin-bottom: 4px; }
+
+.badge-name { font-weight: bold; font-size: 10px; }
+
+.badge-desc { font-size: 9px; color: #666; }
+
+/* =====================================================
+   POSTS
+   ===================================================== */
+.post-card {
+  background: white;
+  border: 1px solid var(--bevel-mid);
+  padding: 6px;
+  margin-bottom: 6px;
+}
+
+.post-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.post-content {
+  font-size: 11px;
+  word-break: break-word;
+}
+
+.post-content img {
+  max-width: 100%;
+  max-height: 150px;
+  display: block;
+  margin-top: 4px;
+}
+
+.post-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: red;
+  padding: 0;
+}
+
+/* =====================================================
+   VHS / GLITCH OVERLAYS
+   ===================================================== */
+#vhs-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8000;
+  overflow: hidden;
+}
+
+.scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+}
+
+.vhs-noise {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  animation: noiseAnim 0.2s steps(2) infinite;
+  opacity: 0.5;
+}
+
+@keyframes noiseAnim {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-2px, 1px); }
+  50%  { transform: translate(2px, -1px); }
+  75%  { transform: translate(-1px, 2px); }
+  100% { transform: translate(1px, -2px); }
+}
+
+#vhs-timestamp {
+  position: absolute;
+  bottom: 50px; left: 12px;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  color: rgba(255,255,255,0.6);
+  text-shadow: 1px 1px 0 black;
+}
+
+#glitch-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7900;
+  animation: glitchShift 3s infinite;
+  mix-blend-mode: difference;
+  opacity: 0.06;
+  background: linear-gradient(to right, red, blue);
+}
+
+@keyframes glitchShift {
+  0%, 90%, 100% { transform: skewX(0); opacity: 0; }
+  91% { transform: skewX(1deg); opacity: 0.08; }
+  92% { transform: skewX(-2deg) translateX(4px); opacity: 0.06; }
+  93% { transform: skewX(0); opacity: 0; }
+  97% { transform: skewX(0.5deg); opacity: 0.05; }
+}
+
+/* =====================================================
+   NOTIFICATION TOAST
+   ===================================================== */
+#notification {
+  position: fixed;
+  bottom: 40px; right: 12px;
+  background: var(--xp-silver);
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+  padding: 6px 12px;
+  font-size: 11px;
+  z-index: 9000;
+  max-width: 280px;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+/* =====================================================
+   RETRO ANIMATIONS / EFFECTS
+   ===================================================== */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@keyframes marqueeAnim {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(-100%); }
+}
+
+@keyframes rainbow {
+  0%   { color: red; }
+  16%  { color: orange; }
+  33%  { color: yellow; }
+  50%  { color: green; }
+  66%  { color: blue; }
+  83%  { color: indigo; }
+  100% { color: violet; }
+}
+
+.blink-text { animation: blink 1s step-end infinite; }
+
+.rainbow-text { animation: rainbow 2s linear infinite; }
+
+.under-construction {
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  color: #ff8800;
+  text-align: center;
+  padding: 4px;
+  animation: blink 0.5s step-end infinite;
+}
+
+/* ── Custom cursor ── */
+.custom-cursor { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ctext y='24' font-size='24'%3E✨%3C/text%3E%3C/svg%3E") 16 16, auto; }
+
+/* ── Desktop background variants ── */
+body.bg-space {
+  background-color: #000020;
+  background-image: radial-gradient(white 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+body.bg-matrix {
+  background-color: #001a00;
+  background-image: none;
+}
+
+body.bg-sunset {
+  background: linear-gradient(to bottom, #ff6b35 0%, #f7931e 30%, #ffcd3c 60%, #c0392b 100%);
+}
+
+body.bg-black {
+  background: #000;
+  background-image: none;
+}
+
+/* ── Misc ── */
+.hit-counter {
+  display: inline-block;
+  background: #000;
+  color: #00ff44;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  padding: 2px 8px;
+  border: 2px inset #004400;
+  letter-spacing: 2px;
+}
+
+.retro-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 10px;
+  border: 1px solid;
+  font-family: 'Tahoma', sans-serif;
+}
+
+.retro-badge.blue { background: #0000cc; color: white; border-color: #000099; }
+.retro-badge.gold { background: #cc9900; color: white; border-color: #996600; }
+.retro-badge.red  { background: #cc0000; color: white; border-color: #990000; }
+
+/* ── Memory game cards ── */
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 60px);
+  gap: 6px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.memory-card {
+  width: 60px; height: 60px;
+  background: #003399;
+  border: 2px solid #6688cc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: transform 0.15s;
+}
+
+.memory-card.flipped { background: #002266; transform: scale(0.95); }
+.memory-card.matched { background: #003a00; border-color: #00cc44; cursor: default; }
+.memory-card.hidden-face { font-size: 0; }
