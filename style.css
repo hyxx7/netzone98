@@ -1227,3 +1227,69 @@ body.bg-black {
 .memory-card.flipped { background: #002266; transform: scale(0.95); }
 .memory-card.matched { background: #003a00; border-color: #00cc44; cursor: default; }
 .memory-card.hidden-face { font-size: 0; }
+
+
+/* ── Avatar Profile Picture ── */
+.profile-avatar-container {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  overflow: hidden;
+  background: #c0c0ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.5);
+  position: relative;
+}
+
+.profile-avatar-container.placeholder {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Hover effect */
+.profile-avatar-container:hover {
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.5);
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+/* ── App Browser Cards ── */
+.app-browser-card {
+  background: white;
+  border: 2px solid #c0c0c0;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 2px;
+}
+
+.app-title {
+  font-weight: bold;
+  color: #000;
+  font-size: 12px;
+}
+
+.app-meta {
+  font-size: 10px;
+  color: #666;
+  margin-top: 2px;
+}
+
+/* ── App Builder Input ── */
+.app-card {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 2px;
+}
