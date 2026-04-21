@@ -403,6 +403,7 @@ function openApp(appId) {
     case "badges":    initBadges();     break;
     case "settings":  initSettings();   break;
     case "appbuilder": initAppBuilder(); break;
+    case "appbrowser": initAppBrowser(); break;
   }
 }
 
