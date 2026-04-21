@@ -1,15 +1,37 @@
 /* =====================================================
    NETZONE 98 — APP.JS
-   Full client-side app with localStorage persistence
+   Firebase-powered (Firestore + Auth)
    ===================================================== */
 
 "use strict";
 
 /* ─────────────────────────────────────────────────────
-   STORAGE HELPERS
+   FIREBASE SETUP
    ───────────────────────────────────────────────────── */
-// ── FIRESTORE HELPERS (replace old DB object) ───────
+import { initializeApp }                                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword,
+         signInWithEmailAndPassword, signOut }                    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc,
+         deleteDoc, addDoc, getDocs, onSnapshot,
+         collection, query, orderBy, limit,
+         serverTimestamp, arrayUnion, increment }                 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+const firebaseConfig = {
+  apiKey:            "AIzaSyAf7OQ6gKgm5sWSkpEAazoicbtjmHmGzsQ",
+  authDomain:        "netzone98-68e0a.firebaseapp.com",
+  projectId:         "netzone98-68e0a",
+  storageBucket:     "netzone98-68e0a.firebasestorage.app",
+  messagingSenderId: "336053324952",
+  appId:             "1:336053324952:web:b1c3c5e4029a012fe214ed"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth        = getAuth(firebaseApp);
+const db          = getFirestore(firebaseApp);
+
+/* ─────────────────────────────────────────────────────
+   FIRESTORE HELPERS
+   ───────────────────────────────────────────────────── */
 async function fsGetUser(username) {
   const snap = await getDoc(doc(db, "users", username));
   return snap.exists() ? snap.data() : null;
@@ -40,7 +62,6 @@ async function fsAddPost(username, content) {
 }
 
 async function fsDeletePost(username, postId) {
-  const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
   await deleteDoc(doc(db, "posts", username, "items", postId));
 }
 
@@ -48,7 +69,7 @@ async function fsGetGuestbook(username) {
   const snap = await getDocs(
     query(collection(db, "guestbooks", username, "entries"), orderBy("ts", "desc"))
   );
-  return snap.docs.map(d => d.data());
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 async function fsAddGuestbookEntry(targetUser, by, msg) {
@@ -63,23 +84,51 @@ async function fsGetBadges(username) {
 }
 
 async function fsAwardBadge(username, badgeId) {
-  const { arrayUnion } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-  await updateDoc(doc(db, "users", username), {
-    badges: arrayUnion(badgeId)
-  });
+  const current = await fsGetBadges(username);
+  if (current.includes(badgeId)) return;
+  await updateDoc(doc(db, "users", username), { badges: arrayUnion(badgeId) });
   const badge = ALL_BADGES.find(b => b.id === badgeId);
   if (badge) notify("🏅 Badge earned: " + badge.name + "!");
+}
+
+async function fsGetVisits(username) {
+  const snap = await getDoc(doc(db, "stats", username));
+  return snap.exists() ? (snap.data().visits || 0) : 0;
+}
+
+async function fsRecordVisit(username) {
+  await setDoc(doc(db, "stats", username), { visits: increment(1) }, { merge: true });
+}
+
+async function fsGetGlobalVisitors() {
+  const snap = await getDoc(doc(db, "stats", "__global__"));
+  return snap.exists() ? (snap.data().visitors || 1337) : 1337;
+}
+
+async function fsIncrementGlobalVisitors() {
+  await setDoc(doc(db, "stats", "__global__"), { visitors: increment(1) }, { merge: true });
+  return fsGetGlobalVisitors();
+}
+
+async function fsGetSettings(username) {
+  const snap = await getDoc(doc(db, "settings", username));
+  return snap.exists() ? snap.data() : {};
+}
+
+async function fsSaveSettings(username, data) {
+  await setDoc(doc(db, "settings", username), data, { merge: true });
 }
 
 /* ─────────────────────────────────────────────────────
    APP STATE
    ───────────────────────────────────────────────────── */
-let currentUser   = null;   // username string
-let currentRoom   = null;   // chat room name
-let viewingUser   = null;   // username being viewed
+let currentUser   = null;
+let currentRoom   = null;
+let viewingUser   = null;
 let chatPollTimer = null;
+let chatUnsub     = null;
 let clockTimer    = null;
-let openWindows   = {};     // appid → dom element
+let openWindows   = {};
 let windowZIndex  = 200;
 let gameState     = null;
 let gameLoop      = null;
@@ -98,10 +147,14 @@ const bootMessages = [
   "Welcome to NetZone 98!",
 ];
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   const bar    = document.getElementById("boot-bar");
   const status = document.getElementById("boot-status");
   let step = 0;
+
+  // Increment + show global visitor count
+  const visitors = await fsIncrementGlobalVisitors();
+  document.getElementById("visitor-count").textContent = visitors;
 
   function tick() {
     if (step >= bootMessages.length) {
@@ -115,24 +168,17 @@ window.addEventListener("DOMContentLoaded", () => {
     setTimeout(tick, 350 + Math.random() * 200);
   }
 
-  // Seed visitor count
-  const stats = DB.getStats();
-  stats.visitors = (stats.visitors || 1337) + 1;
-  DB.setStats(stats);
-  document.getElementById("visitor-count").textContent = stats.visitors;
-
   tick();
 });
 
-function showAuthOrDesktop() {
+async function showAuthOrDesktop() {
   document.getElementById("boot-screen").style.display = "none";
 
-  // Restore logged-in session
   const saved = sessionStorage.getItem("nz98_session");
   if (saved) {
-    currentUser = saved;
-    const users = DB.getUsers();
-    if (users[currentUser]) {
+    const userData = await fsGetUser(saved);
+    if (userData) {
+      currentUser = saved;
       showDesktop();
       return;
     }
@@ -157,31 +203,33 @@ function showError(id, msg) {
   setTimeout(() => el.classList.add("hidden"), 4000);
 }
 
-function handleLogin() {
+async function handleLogin() {
   const username = document.getElementById("login-user").value.trim();
   const password = document.getElementById("login-pass").value;
-
   if (!username || !password) return showError("login-error", "Please fill in all fields.");
 
-  const users = DB.getUsers();
-  if (!users[username])        return showError("login-error", "Username not found.");
-  if (users[username].password !== btoa(password)) return showError("login-error", "Wrong password.");
+  const userData = await fsGetUser(username);
+  if (!userData) return showError("login-error", "Username not found.");
 
-  currentUser = username;
-  sessionStorage.setItem("nz98_session", username);
-  recordVisit(username);
-  showDesktop();
+  try {
+    await signInWithEmailAndPassword(auth, userData.email, password);
+    currentUser = username;
+    sessionStorage.setItem("nz98_session", username);
+    fsRecordVisit(username);
+    showDesktop();
+  } catch (e) {
+    showError("login-error", "Wrong password.");
+  }
 }
 
-function handleGuestLogin() {
-  currentUser = "Guest_" + Math.floor(Math.random() * 9000 + 1000);
-  const users = DB.getUsers();
-  users[currentUser] = {
+async function handleGuestLogin() {
+  const username = "Guest_" + Math.floor(Math.random() * 9000 + 1000);
+  await fsSetUser(username, {
     password: "",
     email: "",
     vibe: "random",
     profile: {
-      displayName: currentUser,
+      displayName: username,
       bio: "Just visiting!",
       avatar: "",
       location: "The Web",
@@ -190,22 +238,17 @@ function handleGuestLogin() {
       textColor: "#000000",
       layout: "classic",
       font: "'Tahoma', sans-serif",
-      bgImage: "",
-      music: "",
-      song: "",
-      friends: [],
-      blinkText: false,
-      marqueeText: false,
-      vhsMode: false,
-      glitchMode: false,
-      customCursor: false,
-      customCss: "",
+      bgImage: "", music: "", song: "",
+      friends: [], blinkText: false, marqueeText: false,
+      vhsMode: false, glitchMode: false,
+      customCursor: false, customCss: "",
     },
-    joined: Date.now(),
+    joined: serverTimestamp(),
     isGuest: true,
-  };
-  DB.setUsers(users);
-  sessionStorage.setItem("nz98_session", currentUser);
+    badges: [],
+  });
+  currentUser = username;
+  sessionStorage.setItem("nz98_session", username);
   showDesktop();
 }
 
@@ -215,8 +258,10 @@ async function handleRegister() {
   const email    = document.getElementById("reg-email").value.trim();
   const vibe     = document.getElementById("reg-vibe").value;
 
-  if (!username || !password || !email) return showError("register-error", "Fill in all fields.");
-  if (!/^[a-zA-Z0-9_]+$/.test(username)) return showError("register-error", "Letters, numbers, underscores only.");
+  if (!username || !password || !email) return showError("register-error", "Please fill in all fields.");
+  if (username.length < 3)              return showError("register-error", "Username must be at least 3 characters.");
+  if (password.length < 4)              return showError("register-error", "Password must be at least 4 characters.");
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) return showError("register-error", "Username: letters, numbers, underscores only.");
 
   const existing = await fsGetUser(username);
   if (existing) return showError("register-error", "Username already taken!");
@@ -243,27 +288,10 @@ async function handleRegister() {
       }
     });
     currentUser = username;
-    showDesktop();
-  } catch (e) {
-    showError("register-error", e.message);
-  }
-}
-
-async function handleLogin() {
-  const username = document.getElementById("login-user").value.trim();
-  const password = document.getElementById("login-pass").value;
-  if (!username || !password) return showError("login-error", "Fill in all fields.");
-
-  const userData = await fsGetUser(username);
-  if (!userData) return showError("login-error", "Username not found.");
-
-  try {
-    await signInWithEmailAndPassword(auth, userData.email, password);
-    currentUser = username;
     sessionStorage.setItem("nz98_session", username);
     showDesktop();
   } catch (e) {
-    showError("login-error", "Wrong password.");
+    showError("register-error", e.message);
   }
 }
 
@@ -271,6 +299,7 @@ async function handleLogout() {
   await signOut(auth);
   currentUser = null;
   sessionStorage.removeItem("nz98_session");
+  if (chatUnsub)    { chatUnsub(); chatUnsub = null; }
   clearInterval(chatPollTimer);
   clearInterval(clockTimer);
   if (gameLoop) cancelAnimationFrame(gameLoop);
@@ -285,33 +314,30 @@ async function handleLogout() {
 /* ─────────────────────────────────────────────────────
    DESKTOP
    ───────────────────────────────────────────────────── */
-function showDesktop() {
+async function showDesktop() {
   document.getElementById("auth-screen").classList.add("hidden");
   document.getElementById("desktop").classList.remove("hidden");
 
-  updateTrayUser();
+  await updateTrayUser();
   startClock();
 
-  // Apply desktop BG setting
-  const settings = DB.get("settings_" + currentUser) || {};
+  const settings = await fsGetSettings(currentUser);
   if (settings.bg) applyDesktopBgValue(settings.bg);
 
-  // VHS / glitch from profile
-  const users = DB.getUsers();
-  const p = users[currentUser]?.profile || {};
-  if (p.vhsMode)   enableVHS(true);
-  if (p.glitchMode) enableGlitch(true);
+  const userData = await fsGetUser(currentUser);
+  const p = userData?.profile || {};
+  if (p.vhsMode)      enableVHS(true);
+  if (p.glitchMode)   enableGlitch(true);
   if (p.customCursor) document.body.classList.add("custom-cursor");
 
   notify("👋 Welcome back, " + (p.displayName || currentUser) + "!");
 }
 
-function updateTrayUser() {
-  const users = DB.getUsers();
-  const p = users[currentUser]?.profile || {};
-  document.getElementById("tray-user-info").textContent =
-    "👤 " + (p.displayName || currentUser);
-  document.getElementById("start-username").textContent = p.displayName || currentUser;
+async function updateTrayUser() {
+  const userData = await fsGetUser(currentUser);
+  const p = userData?.profile || {};
+  document.getElementById("tray-user-info").textContent  = "👤 " + (p.displayName || currentUser);
+  document.getElementById("start-username").textContent  = p.displayName || currentUser;
 }
 
 function startClock() {
@@ -344,7 +370,6 @@ document.addEventListener("click", (e) => {
    ───────────────────────────────────────────────────── */
 function openApp(appId) {
   if (openWindows[appId]) {
-    // Bring to front
     const win = openWindows[appId];
     win.style.display = "flex";
     win.style.zIndex = ++windowZIndex;
@@ -358,7 +383,6 @@ function openApp(appId) {
   const win = tpl.content.cloneNode(true).firstElementChild;
   const layer = document.getElementById("window-layer");
 
-  // Position with slight cascade
   const offset = Object.keys(openWindows).length * 20;
   win.style.left = (80 + offset) + "px";
   win.style.top  = (40 + offset) + "px";
@@ -372,7 +396,6 @@ function openApp(appId) {
   makeDraggable(win);
   updateTaskbar();
 
-  // Initialize app content
   switch (appId) {
     case "profile":   initProfile();    break;
     case "explore":   initExplore();    break;
@@ -447,8 +470,7 @@ function makeDraggable(win) {
   titlebar.addEventListener("mousedown", (e) => {
     if (e.target.classList.contains("win-btn")) return;
     dragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
+    startX = e.clientX; startY = e.clientY;
     const rect = win.getBoundingClientRect();
     startLeft = parseInt(win.style.left) || rect.left;
     startTop  = parseInt(win.style.top)  || rect.top;
@@ -463,20 +485,17 @@ function makeDraggable(win) {
   });
 
   document.addEventListener("mouseup", () => { dragging = false; });
-
-  win.addEventListener("mousedown", () => {
-    win.style.zIndex = ++windowZIndex;
-  });
+  win.addEventListener("mousedown", () => { win.style.zIndex = ++windowZIndex; });
 }
 
 /* ─────────────────────────────────────────────────────
    PROFILE APP
    ───────────────────────────────────────────────────── */
-function initProfile() {
-  renderProfilePreview();
-  loadProfileEdit();
-  loadCustomization();
-  loadMyPosts();
+async function initProfile() {
+  await renderProfilePreview();
+  await loadProfileEdit();
+  await loadCustomization();
+  await loadMyPosts();
 }
 
 function switchProfileTab(tab, el) {
@@ -486,19 +505,14 @@ function switchProfileTab(tab, el) {
   document.querySelectorAll("#win-profile .tab").forEach(t => t.classList.remove("active"));
   if (el) el.classList.add("active");
 
-  if (tab === "view") renderProfilePreview();
+  if (tab === "view")  renderProfilePreview();
   if (tab === "posts") loadMyPosts();
 }
 
-function getUserProfile() {
-  return DB.getUsers()[currentUser]?.profile || {};
-}
-
-function renderProfilePreview() {
+async function renderProfilePreview() {
   const area = document.getElementById("profile-preview-area");
   if (!area) return;
-  const users = DB.getUsers();
-  const user  = users[currentUser];
+  const user = await fsGetUser(currentUser);
   if (!user) return;
   area.innerHTML = buildProfileHTML(currentUser, user, true);
   applyCSSEffects(user.profile, area);
@@ -506,17 +520,13 @@ function renderProfilePreview() {
 
 function buildProfileHTML(username, user, isOwn) {
   const p = user.profile || {};
-  const layout = p.layout || "classic";
-
-  if (layout === "terminal") return buildTerminalLayout(username, user);
-  if (layout === "room")     return buildRoomLayout(username, user);
+  if (p.layout === "terminal") return buildTerminalLayout(username, user);
+  if (p.layout === "room")     return buildRoomLayout(username, user);
   return buildClassicLayout(username, user, isOwn);
 }
 
 function buildClassicLayout(username, user, isOwn) {
   const p = user.profile || {};
-  const stats = DB.getStats();
-  const visits = stats.visits?.[username] || 0;
 
   const friends = (p.friends || []).map(f =>
     `<span class="friend-chip" onclick="viewUserProfile('${f}')">${f}</span>`
@@ -534,14 +544,16 @@ function buildClassicLayout(username, user, isOwn) {
 
   const blinkStyle = p.blinkText ? "animation: blink 0.8s step-end infinite;" : "";
 
-  let html = `
+  // Load visit count async and inject it
+  const visitCountId = "visit-count-" + username;
+
+  const html = `
     <div style="
       background-color: ${p.bgColor || "#000080"};
       color: ${p.textColor || "#ffff00"};
       font-family: ${p.font || "'Courier New', monospace"};
-      padding: 10px;
-      min-height: 280px;
-      ${p.bgImage ? `background-image: url('${p.bgImage}'); background-repeat: tile;` : ""}
+      padding: 10px; min-height: 280px;
+      ${p.bgImage ? `background-image: url('${p.bgImage}'); background-repeat: repeat;` : ""}
     ">
       ${marqueeEl}
       <div class="profile-header-row">
@@ -557,9 +569,9 @@ function buildClassicLayout(username, user, isOwn) {
           </div>
         </div>
         <div>
-          <div class="profile-visitor">Visitor #<span class="hit-counter">${String(visits).padStart(6, "0")}</span></div>
+          <div class="profile-visitor">Visitor #<span class="hit-counter" id="${visitCountId}">000000</span></div>
           <div style="font-size:10px; margin-top:2px; text-align:right; color:${p.textColor || "#ffff00"};">
-            Joined: ${new Date(user.joined || Date.now()).toLocaleDateString()}
+            Joined: ${user.joined?.toDate ? user.joined.toDate().toLocaleDateString() : new Date(user.joined || Date.now()).toLocaleDateString()}
           </div>
         </div>
       </div>
@@ -585,10 +597,15 @@ function buildClassicLayout(username, user, isOwn) {
     </div>
   `;
 
-  // Inject badges after render
-  setTimeout(() => {
-    const el = document.getElementById("inline-badges-" + username);
-    if (el) el.innerHTML = getBadgesHTML(username);
+  // Async inject visits + badges after render
+  setTimeout(async () => {
+    const vc = document.getElementById(visitCountId);
+    if (vc) {
+      const visits = await fsGetVisits(username);
+      vc.textContent = String(visits).padStart(6, "0");
+    }
+    const badgeEl = document.getElementById("inline-badges-" + username);
+    if (badgeEl) badgeEl.innerHTML = await getBadgesHTML(username);
   }, 50);
 
   return html;
@@ -596,7 +613,9 @@ function buildClassicLayout(username, user, isOwn) {
 
 function buildTerminalLayout(username, user) {
   const p = user.profile || {};
-  const joined = new Date(user.joined || Date.now()).toLocaleDateString();
+  const joined = user.joined?.toDate
+    ? user.joined.toDate().toLocaleDateString()
+    : new Date(user.joined || Date.now()).toLocaleDateString();
   return `
     <div class="profile-terminal" id="terminal-${username}">
       <div class="terminal-line">NetZone Terminal v2.0 — Connected.</div>
@@ -629,7 +648,6 @@ function buildRoomLayout(username, user) {
     const y = 30 + Math.floor(i / 4) * 100;
     return `<div class="room-object" style="left:${x}px; top:${y}px;" title="${obj}">${obj}</div>`;
   }).join("");
-
   return `
     <div class="profile-room">
       <div class="room-wall"></div>
@@ -640,36 +658,36 @@ function buildRoomLayout(username, user) {
   `;
 }
 
-function handleTerminalCmd(e, username) {
+async function handleTerminalCmd(e, username) {
   if (e.key !== "Enter") return;
-  const input = document.getElementById("term-input-" + username);
+  const input  = document.getElementById("term-input-" + username);
   const output = document.getElementById("term-output-" + username);
-  const cmd = input.value.trim().toLowerCase();
-  input.value = "";
+  const cmd    = input.value.trim().toLowerCase();
+  input.value  = "";
 
-  const responses = {
-    "help":         "Commands: view posts, open gallery, show bio, show friends, clear",
-    "view posts":   getTerminalPosts(username),
-    "open gallery": "[ Gallery not found — upload images in Edit Profile ]",
-    "show bio":     (DB.getUsers()[username]?.profile?.bio || "No bio set."),
-    "show friends": (DB.getUsers()[username]?.profile?.friends?.join(", ") || "No friends listed."),
-    "clear":        "__CLEAR__",
-  };
+  let result;
+  if (cmd === "clear")        { output.innerHTML = ""; return; }
+  else if (cmd === "help")    result = "Commands: view posts, open gallery, show bio, show friends, clear";
+  else if (cmd === "view posts") {
+    const posts = await fsGetPosts(username);
+    result = posts.length
+      ? posts.slice(0, 3).map((p, i) => `[${i+1}] ${p.content?.substring(0, 60)}...`).join("<br/>")
+      : "No posts found.";
+  }
+  else if (cmd === "show bio") {
+    const u = await fsGetUser(username);
+    result = u?.profile?.bio || "No bio set.";
+  }
+  else if (cmd === "show friends") {
+    const u = await fsGetUser(username);
+    result = u?.profile?.friends?.join(", ") || "No friends listed.";
+  }
+  else if (cmd === "open gallery") result = "[ Gallery not found — upload images in Edit Profile ]";
+  else result = `Command not found: ${cmd}. Type 'help' for commands.`;
 
-  if (cmd === "clear") { output.innerHTML = ""; return; }
-
-  const result = responses[cmd] || `Command not found: ${cmd}. Type 'help' for commands.`;
   output.innerHTML += `<div style="color:#ffff44;">$ ${cmd}</div>`;
   output.innerHTML += `<div style="color:#aaffaa; margin-bottom:4px;">${result}</div>`;
   output.scrollTop = output.scrollHeight;
-}
-
-function getTerminalPosts(username) {
-  const posts = DB.getPosts()[username] || [];
-  if (!posts.length) return "No posts found.";
-  return posts.slice(-3).map((p, i) =>
-    `[${i + 1}] ${new Date(p.ts).toLocaleDateString()} — ${p.content.substring(0, 60)}...`
-  ).join("<br/>");
 }
 
 function applyCSSEffects(p, container) {
@@ -685,8 +703,9 @@ function applyCSSEffects(p, container) {
   }
 }
 
-function loadProfileEdit() {
-  const p = getUserProfile();
+async function loadProfileEdit() {
+  const user = await fsGetUser(currentUser);
+  const p = user?.profile || {};
   setValue("edit-displayname", p.displayName || "");
   setValue("edit-avatar",      p.avatar      || "");
   setValue("edit-bio",         p.bio         || "");
@@ -697,71 +716,77 @@ function loadProfileEdit() {
   setValue("edit-friends",     (p.friends || []).join(", "));
 }
 
-function loadCustomization() {
-  const p = getUserProfile();
+async function loadCustomization() {
+  const user = await fsGetUser(currentUser);
+  const p = user?.profile || {};
   setValue("cust-layout",    p.layout    || "classic");
   setValue("cust-bgcolor",   p.bgColor   || "#000080");
   setValue("cust-textcolor", p.textColor || "#ffff00");
   setValue("cust-bgimage",   p.bgImage   || "");
   setValue("cust-font",      p.font      || "'Courier New', monospace");
   setValue("cust-css",       p.customCss || "");
-  setChecked("cust-blink",   p.blinkText   || false);
-  setChecked("cust-marquee", p.marqueeText || false);
-  setChecked("cust-vhs",     p.vhsMode     || false);
-  setChecked("cust-glitch",  p.glitchMode  || false);
+  setChecked("cust-blink",   p.blinkText    || false);
+  setChecked("cust-marquee", p.marqueeText  || false);
+  setChecked("cust-vhs",     p.vhsMode      || false);
+  setChecked("cust-glitch",  p.glitchMode   || false);
   setChecked("cust-cursor",  p.customCursor || false);
 }
 
-function saveProfile() {
-  const users = DB.getUsers();
-  const p = users[currentUser].profile;
+async function saveProfile() {
+  const profile = {
+    displayName: document.getElementById("edit-displayname").value.trim() || currentUser,
+    avatar:      document.getElementById("edit-avatar").value.trim(),
+    bio:         document.getElementById("edit-bio").value.trim(),
+    location:    document.getElementById("edit-location").value.trim(),
+    mood:        document.getElementById("edit-mood").value.trim(),
+    music:       document.getElementById("edit-music").value.trim(),
+    song:        document.getElementById("edit-song").value.trim(),
+    friends:     document.getElementById("edit-friends").value.split(",").map(s => s.trim()).filter(Boolean),
+  };
 
-  p.displayName = document.getElementById("edit-displayname").value.trim() || currentUser;
-  p.avatar      = document.getElementById("edit-avatar").value.trim();
-  p.bio         = document.getElementById("edit-bio").value.trim();
-  p.location    = document.getElementById("edit-location").value.trim();
-  p.mood        = document.getElementById("edit-mood").value.trim();
-  p.music       = document.getElementById("edit-music").value.trim();
-  p.song        = document.getElementById("edit-song").value.trim();
-  p.friends     = document.getElementById("edit-friends").value.split(",").map(s => s.trim()).filter(Boolean);
+  // Merge with existing profile fields (layout, colors, etc.)
+  const user = await fsGetUser(currentUser);
+  const merged = { ...user.profile, ...profile };
+  await fsSetUser(currentUser, { profile: merged });
 
-  DB.setUsers(users);
-  updateTrayUser();
+  await updateTrayUser();
   notify("✅ Profile saved!");
-  awardBadge(currentUser, "customizer");
+  fsAwardBadge(currentUser, "customizer");
 }
 
-function saveCustomization() {
-  const users = DB.getUsers();
-  const p = users[currentUser].profile;
+async function saveCustomization() {
+  const user = await fsGetUser(currentUser);
+  const existing = user?.profile || {};
 
-  p.layout       = document.getElementById("cust-layout").value;
-  p.bgColor      = document.getElementById("cust-bgcolor").value;
-  p.textColor    = document.getElementById("cust-textcolor").value;
-  p.bgImage      = document.getElementById("cust-bgimage").value.trim();
-  p.font         = document.getElementById("cust-font").value;
-  p.customCss    = document.getElementById("cust-css").value;
-  p.blinkText    = document.getElementById("cust-blink").checked;
-  p.marqueeText  = document.getElementById("cust-marquee").checked;
-  p.vhsMode      = document.getElementById("cust-vhs").checked;
-  p.glitchMode   = document.getElementById("cust-glitch").checked;
-  p.customCursor = document.getElementById("cust-cursor").checked;
+  const profile = {
+    ...existing,
+    layout:       document.getElementById("cust-layout").value,
+    bgColor:      document.getElementById("cust-bgcolor").value,
+    textColor:    document.getElementById("cust-textcolor").value,
+    bgImage:      document.getElementById("cust-bgimage").value.trim(),
+    font:         document.getElementById("cust-font").value,
+    customCss:    document.getElementById("cust-css").value,
+    blinkText:    document.getElementById("cust-blink").checked,
+    marqueeText:  document.getElementById("cust-marquee").checked,
+    vhsMode:      document.getElementById("cust-vhs").checked,
+    glitchMode:   document.getElementById("cust-glitch").checked,
+    customCursor: document.getElementById("cust-cursor").checked,
+  };
 
-  DB.setUsers(users);
+  await fsSetUser(currentUser, { profile });
 
-  enableVHS(p.vhsMode);
-  enableGlitch(p.glitchMode);
-  document.body.classList.toggle("custom-cursor", p.customCursor);
+  enableVHS(profile.vhsMode);
+  enableGlitch(profile.glitchMode);
+  document.body.classList.toggle("custom-cursor", profile.customCursor);
 
   renderProfilePreview();
   notify("🎨 Theme applied!");
-  awardBadge(currentUser, "designer");
+  fsAwardBadge(currentUser, "designer");
 }
 
-function exportProfile() {
-  const users = DB.getUsers();
-  const user  = users[currentUser];
-  const html  = `<!DOCTYPE html>
+async function exportProfile() {
+  const user = await fsGetUser(currentUser);
+  const html = `<!DOCTYPE html>
 <html>
 <head>
   <title>${user.profile.displayName || currentUser} — NetZone 98 Profile</title>
@@ -782,7 +807,7 @@ function exportProfile() {
   const blob = new Blob([html], { type: "text/html" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = (currentUser + "_netzone98.html");
+  a.download = currentUser + "_netzone98.html";
   a.click();
   URL.revokeObjectURL(a.href);
   notify("📁 Profile exported!");
@@ -791,47 +816,42 @@ function exportProfile() {
 /* ─────────────────────────────────────────────────────
    POSTS
    ───────────────────────────────────────────────────── */
-function loadMyPosts() {
-  const list  = document.getElementById("my-posts-list");
+async function loadMyPosts() {
+  const list = document.getElementById("my-posts-list");
   if (!list) return;
-  const posts = DB.getPosts()[currentUser] || [];
+  const posts = await fsGetPosts(currentUser);
   if (!posts.length) { list.innerHTML = "<i style='color:#888;'>No posts yet.</i>"; return; }
 
-  list.innerHTML = [...posts].reverse().map((p, i) => {
-    const realIdx = posts.length - 1 - i;
-    const isImage = /\.(gif|png|jpg|jpeg|webp)$/i.test(p.content.trim()) || p.content.trim().startsWith("http");
+  list.innerHTML = posts.map(p => {
+    const isImage = /\.(gif|png|jpg|jpeg|webp)$/i.test(p.content?.trim()) || p.content?.trim().startsWith("http");
     const contentHtml = isImage
       ? `<img src="${p.content.trim()}" alt="" style="max-width:100%; max-height:150px; display:block; margin-top:4px;" />`
       : p.content;
+    const ts = p.ts?.toDate ? p.ts.toDate().toLocaleString() : "just now";
     return `
       <div class="post-card">
         <div class="post-header">
-          <span>📅 ${new Date(p.ts).toLocaleString()}</span>
-          <button class="post-delete-btn" onclick="deletePost(${realIdx})">✕ Delete</button>
+          <span>📅 ${ts}</span>
+          <button class="post-delete-btn" onclick="deletePost('${p.id}')">✕ Delete</button>
         </div>
         <div class="post-content">${contentHtml}</div>
       </div>`;
   }).join("");
 }
 
-function submitPost() {
+async function submitPost() {
   const content = document.getElementById("post-content").value.trim();
   if (!content) return;
-  const posts = DB.getPosts();
-  if (!posts[currentUser]) posts[currentUser] = [];
-  posts[currentUser].push({ content, ts: Date.now() });
-  DB.setPosts(posts);
+  await fsAddPost(currentUser, content);
   document.getElementById("post-content").value = "";
-  loadMyPosts();
+  await loadMyPosts();
   notify("📤 Posted!");
-  awardBadge(currentUser, "poster");
+  fsAwardBadge(currentUser, "poster");
 }
 
-function deletePost(idx) {
-  const posts = DB.getPosts();
-  posts[currentUser].splice(idx, 1);
-  DB.setPosts(posts);
-  loadMyPosts();
+async function deletePost(postId) {
+  await fsDeletePost(currentUser, postId);
+  await loadMyPosts();
 }
 
 /* ─────────────────────────────────────────────────────
@@ -841,42 +861,48 @@ function initExplore() {
   loadAllUsers();
 }
 
-function loadAllUsers() {
-  const users   = DB.getUsers();
+async function loadAllUsers() {
   const content = document.getElementById("explore-content");
   if (!content) return;
+  content.innerHTML = "<i style='color:#888;'>Loading users...</i>";
+  const users = await fsGetAllUsers();
   const others = Object.entries(users).filter(([u]) => u !== currentUser);
   if (!others.length) {
     content.innerHTML = "<div class='explore-hint'>No other users yet. Be the first to sign up!</div>";
     return;
   }
-  content.innerHTML = others.map(([uname, u]) => userCardHTML(uname, u)).join("");
+  const cards = await Promise.all(others.map(([uname, u]) => userCardHTML(uname, u)));
+  content.innerHTML = cards.join("");
 }
 
-function loadTopProfiles() {
-  const users   = DB.getUsers();
-  const stats   = DB.getStats();
+async function loadTopProfiles() {
   const content = document.getElementById("explore-content");
   if (!content) return;
-  const sorted = Object.entries(users)
-    .sort(([a], [b]) => (stats.visits?.[b] || 0) - (stats.visits?.[a] || 0));
-  content.innerHTML = `<div class="section-title">🏆 Top Visited</div>` +
-    sorted.map(([uname, u]) => userCardHTML(uname, u)).join("");
+  content.innerHTML = "<i style='color:#888;'>Loading...</i>";
+  const users = await fsGetAllUsers();
+  const withVisits = await Promise.all(
+    Object.entries(users).map(async ([uname, u]) => ({
+      uname, u, visits: await fsGetVisits(uname)
+    }))
+  );
+  withVisits.sort((a, b) => b.visits - a.visits);
+  const cards = await Promise.all(withVisits.map(({ uname, u }) => userCardHTML(uname, u)));
+  content.innerHTML = `<div class="section-title">🏆 Top Visited</div>` + cards.join("");
 }
 
-function loadRandomProfile() {
-  const users = DB.getUsers();
+async function loadRandomProfile() {
+  const users = await fsGetAllUsers();
   const keys  = Object.keys(users).filter(u => u !== currentUser);
   if (!keys.length) return notify("No other users to explore!");
-  const pick = keys[Math.floor(Math.random() * keys.length)];
-  viewUserProfile(pick);
+  viewUserProfile(keys[Math.floor(Math.random() * keys.length)]);
 }
 
-function userCardHTML(username, user) {
-  const p       = user.profile || {};
-  const stats   = DB.getStats();
-  const visits  = stats.visits?.[username] || 0;
-  const avatar  = p.avatar ? `<img src="${p.avatar}" style="width:36px;height:36px;object-fit:cover;" onerror="this.style.display='none'" />` : "👤";
+async function userCardHTML(username, user) {
+  const p      = user.profile || {};
+  const visits = await fsGetVisits(username);
+  const avatar = p.avatar
+    ? `<img src="${p.avatar}" style="width:36px;height:36px;object-fit:cover;" onerror="this.style.display='none'" />`
+    : "👤";
   return `
     <div class="user-card" onclick="viewUserProfile('${username}')">
       <div class="user-card-avatar">${avatar}</div>
@@ -891,23 +917,23 @@ function userCardHTML(username, user) {
 /* ─────────────────────────────────────────────────────
    VIEW USER PROFILE
    ───────────────────────────────────────────────────── */
-function viewUserProfile(username) {
-  const users = DB.getUsers();
-  if (!users[username]) return notify("User not found: " + username);
+async function viewUserProfile(username) {
+  const user = await fsGetUser(username);
+  if (!user) return notify("User not found: " + username);
 
   viewingUser = username;
-  recordVisit(username);
+  fsRecordVisit(username);
+  fsAwardBadge(currentUser, "explorer");
 
-  // Close old viewuser window if open
   if (openWindows["viewuser"]) closeWindow("viewuser");
 
-  const tpl = document.getElementById("tpl-viewuser");
-  const win = tpl.content.cloneNode(true).firstElementChild;
+  const tpl   = document.getElementById("tpl-viewuser");
+  const win   = tpl.content.cloneNode(true).firstElementChild;
   const layer = document.getElementById("window-layer");
 
   const offset = Object.keys(openWindows).length * 20;
   win.style.left = (100 + offset) + "px";
-  win.style.top  = (60 + offset)  + "px";
+  win.style.top  = (60  + offset) + "px";
   win.style.zIndex = ++windowZIndex;
   win.style.display = "flex";
   win.style.flexDirection = "column";
@@ -917,24 +943,23 @@ function viewUserProfile(username) {
   makeDraggable(win);
   updateTaskbar();
 
-  const user = users[username];
-  const p    = user.profile || {};
+  const p = user.profile || {};
   win.querySelector("#viewuser-title").textContent = "👤 " + (p.displayName || username) + "'s Profile";
   const content = win.querySelector("#viewuser-content");
   content.innerHTML = buildProfileHTML(username, user, false);
   applyCSSEffects(p, content);
 
-  // Show guestbook entries
-  const gbs = DB.getGuestbooks()[username] || [];
+  // Guestbook section
+  const gbs = await fsGetGuestbook(username);
   const gbSection = document.createElement("div");
   gbSection.style.marginTop = "8px";
   gbSection.innerHTML = `
     <div class="section-title">📖 Guestbook (${gbs.length} entries)</div>
-    ${gbs.slice(-5).reverse().map(e => `
+    ${gbs.slice(0, 5).map(e => `
       <div class="gb-entry">
         <div class="gb-entry-header">
           <span class="gb-entry-user">${e.by}</span>
-          <span>${new Date(e.ts).toLocaleDateString()}</span>
+          <span>${e.ts?.toDate ? e.ts.toDate().toLocaleDateString() : ""}</span>
         </div>
         <div class="gb-entry-text">${e.msg}</div>
       </div>`).join("") || "<i style='color:#888;'>No entries yet.</i>"}
@@ -950,36 +975,25 @@ function signOtherGuestbook() {
 function followUser() {
   if (!viewingUser) return;
   notify("⭐ You are now following " + viewingUser + "!");
-  awardBadge(currentUser, "social");
+  fsAwardBadge(currentUser, "social");
 }
 
-function submitOtherGuestbook() {
+async function submitOtherGuestbook() {
   const msg = document.querySelector("#win-viewuser #viewuser-gb-msg")?.value.trim();
   if (!msg || !viewingUser) return;
 
-  const gbs = DB.getGuestbooks();
-  if (!gbs[viewingUser]) gbs[viewingUser] = [];
-  gbs[viewingUser].push({ by: currentUser, msg, ts: Date.now() });
-  DB.setGuestbooks(gbs);
+  await fsAddGuestbookEntry(viewingUser, currentUser, msg);
 
   document.querySelector("#win-viewuser #viewuser-gb-msg").value = "";
   document.querySelector("#win-viewuser #viewuser-guestbook-form").classList.add("hidden");
   notify("✍️ Guestbook signed!");
-  awardBadge(currentUser, "social");
-  viewUserProfile(viewingUser); // refresh
-}
-
-function recordVisit(username) {
-  const stats = DB.getStats();
-  if (!stats.visits) stats.visits = {};
-  stats.visits[username] = (stats.visits[username] || 0) + 1;
-  DB.setStats(stats);
+  fsAwardBadge(currentUser, "social");
+  viewUserProfile(viewingUser);
 }
 
 /* ─────────────────────────────────────────────────────
    CHAT APP
    ───────────────────────────────────────────────────── */
-let chatUnsub = null;
 const DEFAULT_ROOMS = ["General", "Tech", "Gaming", "Music"];
 
 async function initChat() {
@@ -990,35 +1004,27 @@ async function initChat() {
 async function renderRoomList() {
   const list = document.getElementById("chat-room-list");
   if (!list) return;
-
-  // Get all rooms from Firestore (each room is a doc in "chatRooms" collection)
-  const snap = await getDocs(collection(db, "chatRooms"));
+  const snap  = await getDocs(collection(db, "chatRooms"));
   const rooms = new Set(DEFAULT_ROOMS);
   snap.forEach(d => rooms.add(d.id));
-
   list.innerHTML = [...rooms].map(r =>
-    `<button class="chat-room-btn ${r === currentRoom ? 'active' : ''}" onclick="joinRoom('${r}')"># ${r}</button>`
+    `<button class="chat-room-btn ${r === currentRoom ? "active" : ""}" onclick="joinRoom('${r}')"># ${r}</button>`
   ).join("");
 }
 
 function joinRoom(room) {
   currentRoom = room;
-
   const title = document.getElementById("chat-room-title");
   if (title) title.textContent = "# " + room;
 
   renderRoomList();
   notify("💬 Joined #" + room);
 
-  // Unsubscribe from previous room listener
-  if (chatUnsub) { chatUnsub(); chatUnsub = null; }
-  // No more polling needed
-  if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+  if (chatUnsub)    { chatUnsub(); chatUnsub = null; }
+  if (chatPollTimer){ clearInterval(chatPollTimer); chatPollTimer = null; }
 
-  // Ensure room doc exists
   setDoc(doc(db, "chatRooms", room), { name: room }, { merge: true });
 
-  // Post system join message
   addDoc(collection(db, "chatRooms", room, "messages"), {
     user: "SYSTEM",
     msg: currentUser + " joined the room.",
@@ -1026,27 +1032,22 @@ function joinRoom(room) {
     system: true
   });
 
-  // Real-time listener — updates instantly for ALL users
   const msgsRef = query(
     collection(db, "chatRooms", room, "messages"),
-    orderBy("ts"),
-    limit(80)
+    orderBy("ts"), limit(80)
   );
 
   chatUnsub = onSnapshot(msgsRef, snap => {
     const el = document.getElementById("chat-messages");
     if (!el) return;
-
     el.innerHTML = snap.docs.map(d => {
       const m = d.data();
       if (m.system) return `<div class="chat-msg chat-msg-system">*** ${m.msg}</div>`;
-      // ts can be null briefly before Firestore confirms serverTimestamp
       const time = m.ts?.toDate
         ? m.ts.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : "";
       return `<div class="chat-msg"><span class="chat-msg-user">[${m.user}]</span> ${m.msg} <span style="color:#aaa;font-size:9px;">${time}</span></div>`;
     }).join("");
-
     el.scrollTop = el.scrollHeight;
   });
 }
@@ -1056,15 +1057,10 @@ async function sendChatMessage() {
   if (!input) return;
   const msg = input.value.trim();
   if (!msg || !currentRoom) return;
-
   input.value = "";
-
   await addDoc(collection(db, "chatRooms", currentRoom, "messages"), {
-    user: currentUser,
-    msg,
-    ts: serverTimestamp()
+    user: currentUser, msg, ts: serverTimestamp()
   });
-
   fsAwardBadge(currentUser, "chatter");
 }
 
@@ -1072,10 +1068,8 @@ async function createRoom() {
   const name = document.getElementById("new-room-name").value.trim();
   if (!name) return;
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) return notify("Room name: letters/numbers/dashes only.");
-
   const existing = await getDoc(doc(db, "chatRooms", name));
   if (existing.exists()) return notify("Room already exists!");
-
   await setDoc(doc(db, "chatRooms", name), { name, createdBy: currentUser, ts: serverTimestamp() });
   document.getElementById("new-room-name").value = "";
   await renderRoomList();
@@ -1090,30 +1084,27 @@ function initGuestbook() {
   renderGuestbookEntries();
 }
 
-function renderGuestbookEntries() {
+async function renderGuestbookEntries() {
   const el = document.getElementById("guestbook-entries");
   if (!el) return;
-  const gbs = DB.getGuestbooks()[currentUser] || [];
+  const gbs = await fsGetGuestbook(currentUser);
   if (!gbs.length) { el.innerHTML = "<i style='color:#888;'>No entries yet. Share your page!</i>"; return; }
-  el.innerHTML = [...gbs].reverse().map(e => `
+  el.innerHTML = gbs.map(e => `
     <div class="gb-entry">
       <div class="gb-entry-header">
         <span class="gb-entry-user" onclick="viewUserProfile('${e.by}')">${e.by}</span>
-        <span>${new Date(e.ts).toLocaleDateString()}</span>
+        <span>${e.ts?.toDate ? e.ts.toDate().toLocaleDateString() : ""}</span>
       </div>
       <div class="gb-entry-text">${e.msg}</div>
     </div>`).join("");
 }
 
-function signGuestbook() {
+async function signGuestbook() {
   const msg = document.getElementById("guestbook-msg").value.trim();
   if (!msg) return;
-  const gbs = DB.getGuestbooks();
-  if (!gbs[currentUser]) gbs[currentUser] = [];
-  gbs[currentUser].push({ by: currentUser, msg, ts: Date.now() });
-  DB.setGuestbooks(gbs);
+  await fsAddGuestbookEntry(currentUser, currentUser, msg);
   document.getElementById("guestbook-msg").value = "";
-  renderGuestbookEntries();
+  await renderGuestbookEntries();
   notify("✍️ Entry added!");
 }
 
@@ -1146,20 +1137,18 @@ function startSnake(area) {
     <canvas id="snake-canvas" width="${W}" height="${H}"></canvas>
     <div class="game-msg" style="font-size:13px; margin-top:4px;">Arrow Keys to move</div>`;
   const canvas = document.getElementById("snake-canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx    = canvas.getContext("2d");
 
   let snake = [{ x: 10, y: 10 }];
   let dir   = { x: 1, y: 0 };
-  let food  = randomFood(W, H, SZ);
-  let score = 0;
-  let speed = 150;
-  let lastTime = 0;
+  let food  = randomFood();
+  let score = 0, speed = 150, lastTime = 0;
 
   const keyMap = {
-    ArrowUp:    { x:  0, y: -1 }, ArrowDown:  { x: 0, y: 1 },
-    ArrowLeft:  { x: -1, y:  0 }, ArrowRight: { x: 1, y: 0 },
-    w:          { x:  0, y: -1 }, s:          { x: 0, y: 1 },
-    a:          { x: -1, y:  0 }, d:          { x: 1, y: 0 },
+    ArrowUp:   { x:0, y:-1 }, ArrowDown: { x:0,  y:1 },
+    ArrowLeft: { x:-1,y:0  }, ArrowRight:{ x:1,  y:0 },
+    w:         { x:0, y:-1 }, s:         { x:0,  y:1 },
+    a:         { x:-1,y:0  }, d:         { x:1,  y:0 },
   };
 
   function keydown(e) {
@@ -1168,11 +1157,8 @@ function startSnake(area) {
   }
   document.addEventListener("keydown", keydown);
 
-  function randomFood(W, H, SZ) {
-    return {
-      x: Math.floor(Math.random() * (W / SZ)),
-      y: Math.floor(Math.random() * (H / SZ))
-    };
+  function randomFood() {
+    return { x: Math.floor(Math.random()*(W/SZ)), y: Math.floor(Math.random()*(H/SZ)) };
   }
 
   function draw(ts) {
@@ -1181,43 +1167,31 @@ function startSnake(area) {
     lastTime = ts;
 
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-
-    // Wall collision
-    if (head.x < 0 || head.y < 0 || head.x >= W / SZ || head.y >= H / SZ) return gameOver("snake", score);
-    // Self collision
-    if (snake.some(s => s.x === head.x && s.y === head.y)) return gameOver("snake", score);
+    if (head.x < 0 || head.y < 0 || head.x >= W/SZ || head.y >= H/SZ) {
+      document.removeEventListener("keydown", keydown);
+      return gameOver("snake", score);
+    }
+    if (snake.some(s => s.x === head.x && s.y === head.y)) {
+      document.removeEventListener("keydown", keydown);
+      return gameOver("snake", score);
+    }
 
     snake.unshift(head);
-
     if (head.x === food.x && head.y === food.y) {
       score++;
       document.getElementById("snake-score").textContent = score;
-      food = randomFood(W, H, SZ);
+      food  = randomFood();
       speed = Math.max(60, speed - 5);
-    } else {
-      snake.pop();
-    }
+    } else { snake.pop(); }
 
-    ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(0, 0, W, H);
-
-    // Food
-    ctx.fillStyle = "#ff4444";
-    ctx.fillRect(food.x * SZ, food.y * SZ, SZ - 1, SZ - 1);
-
-    // Snake
+    ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#ff4444"; ctx.fillRect(food.x*SZ, food.y*SZ, SZ-1, SZ-1);
     snake.forEach((s, i) => {
       ctx.fillStyle = i === 0 ? "#00ff44" : "#00cc33";
-      ctx.fillRect(s.x * SZ, s.y * SZ, SZ - 1, SZ - 1);
+      ctx.fillRect(s.x*SZ, s.y*SZ, SZ-1, SZ-1);
     });
   }
-
-  function cleanup() { document.removeEventListener("keydown", keydown); }
   gameLoop = requestAnimationFrame(draw);
-
-  // Override close to clean up
-  const origClose = window.closeWindow;
-  canvas.dataset.cleanup = "snake";
 }
 
 /* ── PONG ── */
@@ -1228,11 +1202,11 @@ function startPong(area) {
     <canvas id="pong-canvas" width="${W}" height="${H}"></canvas>
     <div class="game-msg" style="font-size:12px; margin-top:4px;">W/S or ↑/↓ to move</div>`;
   const canvas = document.getElementById("pong-canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx    = canvas.getContext("2d");
 
   const PH = 50, PW = 8, BR = 7;
-  let py = H / 2 - PH / 2, cy = H / 2 - PH / 2;
-  let bx = W / 2, by = H / 2, vx = 4, vy = 3;
+  let py = H/2-PH/2, cy = H/2-PH/2;
+  let bx = W/2, by = H/2, vx = 4, vy = 3;
   let pscore = 0, cscore = 0;
   const keys = {};
 
@@ -1243,48 +1217,23 @@ function startPong(area) {
 
   function draw() {
     gameLoop = requestAnimationFrame(draw);
-
-    // Player movement
-    if ((keys["ArrowUp"] || keys["w"]) && py > 0)        py -= 5;
-    if ((keys["ArrowDown"] || keys["s"]) && py < H - PH) py += 5;
-
-    // CPU AI
-    if (cy + PH / 2 < by - 4) cy += 3.5;
-    else if (cy + PH / 2 > by + 4) cy -= 3.5;
-    cy = Math.max(0, Math.min(H - PH, cy));
-
-    // Ball movement
+    if ((keys["ArrowUp"]   || keys["w"]) && py > 0)       py -= 5;
+    if ((keys["ArrowDown"] || keys["s"]) && py < H-PH)    py += 5;
+    if (cy + PH/2 < by - 4) cy += 3.5; else if (cy + PH/2 > by + 4) cy -= 3.5;
+    cy = Math.max(0, Math.min(H-PH, cy));
     bx += vx; by += vy;
-
-    // Top/bottom bounce
-    if (by <= BR || by >= H - BR) vy *= -1;
-
-    // Paddle collision
-    if (bx - BR <= PW && by >= py && by <= py + PH) { vx = Math.abs(vx); }
-    if (bx + BR >= W - PW && by >= cy && by <= cy + PH) { vx = -Math.abs(vx); }
-
-    // Score
-    if (bx < 0) {
-      cscore++; document.getElementById("pong-cscore").textContent = cscore;
-      bx = W / 2; by = H / 2; vx = 4; vy = 3;
-    }
-    if (bx > W) {
-      pscore++; document.getElementById("pong-pscore").textContent = pscore;
-      bx = W / 2; by = H / 2; vx = -4; vy = -3;
-    }
-
-    // Draw
-    ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = "#333"; ctx.setLineDash([6, 4]);
-    ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#00ff44";
-    ctx.fillRect(0, py, PW, PH);
-    ctx.fillRect(W - PW, cy, PW, PH);
-    ctx.beginPath(); ctx.arc(bx, by, BR, 0, Math.PI * 2);
-    ctx.fillStyle = "#fff"; ctx.fill();
+    if (by <= BR || by >= H-BR) vy *= -1;
+    if (bx-BR <= PW   && by >= py && by <= py+PH) vx =  Math.abs(vx);
+    if (bx+BR >= W-PW && by >= cy && by <= cy+PH) vx = -Math.abs(vx);
+    if (bx < 0) { cscore++; document.getElementById("pong-cscore").textContent = cscore; bx=W/2; by=H/2; vx=4;  vy=3; }
+    if (bx > W) { pscore++; document.getElementById("pong-pscore").textContent = pscore; bx=W/2; by=H/2; vx=-4; vy=-3; }
+    ctx.fillStyle="#0a0a0a"; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="#333"; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle="#00ff44";
+    ctx.fillRect(0,py,PW,PH); ctx.fillRect(W-PW,cy,PW,PH);
+    ctx.beginPath(); ctx.arc(bx,by,BR,0,Math.PI*2); ctx.fillStyle="#fff"; ctx.fill();
   }
-
   gameLoop = requestAnimationFrame(draw);
 }
 
@@ -1301,39 +1250,32 @@ function startMemory(area) {
 
   cards.forEach((emoji, i) => {
     const card = document.createElement("div");
-    card.className = "memory-card hidden-face";
+    card.className   = "memory-card hidden-face";
     card.dataset.emoji = emoji;
-    card.dataset.index = i;
-    card.onclick = () => flipCard(card);
+    card.onclick = () => {
+      if (locked || card.classList.contains("flipped") || card.classList.contains("matched")) return;
+      card.textContent = emoji;
+      card.classList.remove("hidden-face");
+      card.classList.add("flipped");
+      flipped.push(card);
+      if (flipped.length === 2) {
+        locked = true;
+        if (flipped[0].dataset.emoji === flipped[1].dataset.emoji) {
+          flipped.forEach(c => c.classList.add("matched"));
+          matched++;
+          document.getElementById("mem-score").textContent = matched;
+          flipped = []; locked = false;
+          if (matched === 8) { setTimeout(() => notify("🧠 Memory complete! Amazing!"), 200); fsAwardBadge(currentUser, "gamer"); }
+        } else {
+          setTimeout(() => {
+            flipped.forEach(c => { c.textContent=""; c.classList.remove("flipped"); c.classList.add("hidden-face"); });
+            flipped = []; locked = false;
+          }, 800);
+        }
+      }
+    };
     grid.appendChild(card);
   });
-
-  function flipCard(card) {
-    if (locked || card.classList.contains("flipped") || card.classList.contains("matched")) return;
-    card.textContent = card.dataset.emoji;
-    card.classList.remove("hidden-face");
-    card.classList.add("flipped");
-    flipped.push(card);
-
-    if (flipped.length === 2) {
-      locked = true;
-      if (flipped[0].dataset.emoji === flipped[1].dataset.emoji) {
-        flipped.forEach(c => c.classList.add("matched"));
-        matched++;
-        document.getElementById("mem-score").textContent = matched;
-        flipped = []; locked = false;
-        if (matched === 8) {
-          setTimeout(() => notify("🧠 Memory complete! Amazing!"), 200);
-          awardBadge(currentUser, "gamer");
-        }
-      } else {
-        setTimeout(() => {
-          flipped.forEach(c => { c.textContent = ""; c.classList.remove("flipped"); c.classList.add("hidden-face"); });
-          flipped = []; locked = false;
-        }, 800);
-      }
-    }
-  }
 }
 
 function gameOver(game, score) {
@@ -1342,11 +1284,10 @@ function gameOver(game, score) {
   const area = document.getElementById("game-area");
   if (area) area.innerHTML = `
     <div class="game-msg" style="padding:20px;">
-      GAME OVER<br/>
-      Score: ${score}<br/>
+      GAME OVER<br/>Score: ${score}<br/>
       <button class="xp-btn primary" onclick="loadGame('${game}')" style="margin-top:8px;">Try Again</button>
     </div>`;
-  if (score > 5) awardBadge(currentUser, "gamer");
+  if (score > 5) fsAwardBadge(currentUser, "gamer");
 }
 
 /* ─────────────────────────────────────────────────────
@@ -1363,34 +1304,23 @@ const ALL_BADGES = [
   { id: "explorer",   icon: "🔭", name: "Explorer",    desc: "Visited another profile" },
 ];
 
-function getUserBadges(username) {
-  return DB.get("badges_" + username) || [];
-}
-
-function awardBadge(username, badgeId) {
-  const current = getUserBadges(username);
-  if (current.includes(badgeId)) return;
-  current.push(badgeId);
-  DB.set("badges_" + username, current);
-  const badge = ALL_BADGES.find(b => b.id === badgeId);
-  if (badge) notify("🏅 Badge earned: " + badge.name + "!");
-}
-
-function initBadges() {
-  const grid = document.getElementById("badges-grid");
+async function initBadges() {
+  const grid   = document.getElementById("badges-grid");
   if (!grid) return;
-  const earned = getUserBadges(currentUser);
+  const earned = await fsGetBadges(currentUser);
   grid.innerHTML = ALL_BADGES.map(b => `
     <div class="badge-card ${earned.includes(b.id) ? "" : "locked"}">
       <div class="badge-icon">${b.icon}</div>
       <div class="badge-name">${b.name}</div>
       <div class="badge-desc">${b.desc}</div>
-      ${earned.includes(b.id) ? "<div style='color:#008800;font-size:9px;'>✅ Earned</div>" : "<div style='color:#aaa;font-size:9px;'>🔒 Locked</div>"}
+      ${earned.includes(b.id)
+        ? "<div style='color:#008800;font-size:9px;'>✅ Earned</div>"
+        : "<div style='color:#aaa;font-size:9px;'>🔒 Locked</div>"}
     </div>`).join("");
 }
 
-function getBadgesHTML(username) {
-  const earned = getUserBadges(username);
+async function getBadgesHTML(username) {
+  const earned = await fsGetBadges(username);
   return ALL_BADGES.filter(b => earned.includes(b.id))
     .map(b => `<span title="${b.name}" style="font-size:20px;">${b.icon}</span>`)
     .join(" ");
@@ -1399,55 +1329,55 @@ function getBadgesHTML(username) {
 /* ─────────────────────────────────────────────────────
    SETTINGS APP
    ───────────────────────────────────────────────────── */
-function initSettings() {
-  const saved = DB.get("settings_" + currentUser) || {};
+async function initSettings() {
+  const saved = await fsGetSettings(currentUser);
   setValue("set-bg", saved.bg || "default");
 }
 
-function applyDesktopBg() {
+async function applyDesktopBg() {
   const val = document.getElementById("set-bg").value;
   applyDesktopBgValue(val);
-  const saved = DB.get("settings_" + currentUser) || {};
-  saved.bg = val;
-  DB.set("settings_" + currentUser, saved);
+  await fsSaveSettings(currentUser, { bg: val });
 }
 
 function applyDesktopBgValue(val) {
-  document.body.className = document.body.className
-    .replace(/\bbg-\S+/g, "").trim();
+  document.body.className = document.body.className.replace(/\bbg-\S+/g, "").trim();
   const map = { space: "bg-space", matrix: "bg-matrix", sunset: "bg-sunset", black: "bg-black" };
   if (map[val]) document.body.classList.add(map[val]);
 }
 
-function changePassword() {
+async function changePassword() {
   const oldpass = document.getElementById("set-oldpass").value;
   const newpass = document.getElementById("set-newpass").value;
   if (!oldpass || !newpass) return showSettingsMsg("Fill in both fields.", "red");
   if (newpass.length < 4)   return showSettingsMsg("Password too short.", "red");
 
-  const users = DB.getUsers();
-  const user  = users[currentUser];
+  const user = await fsGetUser(currentUser);
   if (user.isGuest) return showSettingsMsg("Guests can't change passwords.", "red");
-  if (user.password !== btoa(oldpass)) return showSettingsMsg("Old password incorrect.", "red");
 
-  users[currentUser].password = btoa(newpass);
-  DB.setUsers(users);
-  showSettingsMsg("✅ Password changed!", "green");
+  try {
+    // Re-authenticate then update
+    await signInWithEmailAndPassword(auth, user.email, oldpass);
+    const { updatePassword } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+    await updatePassword(auth.currentUser, newpass);
+    showSettingsMsg("✅ Password changed!", "green");
+  } catch (e) {
+    showSettingsMsg("Old password incorrect.", "red");
+  }
 }
 
-function deleteAccount() {
+async function deleteAccount() {
   if (!confirm("Delete your account permanently? This cannot be undone.")) return;
-  const users = DB.getUsers();
-  delete users[currentUser];
-  DB.setUsers(users);
+  await deleteDoc(doc(db, "users", currentUser));
+  if (auth.currentUser) await auth.currentUser.delete();
   handleLogout();
 }
 
 function showSettingsMsg(msg, color) {
   const el = document.getElementById("settings-msg");
   if (!el) return;
-  el.textContent = msg;
-  el.style.color = color;
+  el.textContent  = msg;
+  el.style.color  = color;
   el.classList.remove("hidden");
   setTimeout(() => el.classList.add("hidden"), 3000);
 }
