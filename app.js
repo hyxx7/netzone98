@@ -1035,7 +1035,7 @@ function joinRoom(room) {
     orderBy("ts"), limit(80)
   );
 
-  chatUnsub = onSnapshot(msgsRef, snap => {
+chatUnsub = onSnapshot(msgsRef, snap => {
     const el = document.getElementById("chat-messages");
     if (!el) return;
     el.innerHTML = snap.docs.map(d => {
@@ -1044,7 +1044,14 @@ function joinRoom(room) {
       const time = m.ts?.toDate
         ? m.ts.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : "";
-      return `<div class="chat-msg"><span class="chat-msg-user">[${m.user}]</span> ${m.msg} <span style="color:#aaa;font-size:9px;">${time}</span></div>`;
+      const isImage = /\.(gif|png|jpg|jpeg|webp)$/i.test(m.msg.trim())
+        || m.msg.trim().startsWith("https://media.tenor")
+        || m.msg.trim().startsWith("https://i.giphy")
+        || m.msg.trim().startsWith("https://media.giphy");
+      const msgContent = isImage
+        ? `<img src="${m.msg.trim()}" alt="gif" style="max-width:200px; max-height:150px; display:block; margin-top:4px; border-radius:4px;" />`
+        : m.msg;
+      return `<div class="chat-msg"><span class="chat-msg-user">[${m.user}]</span> ${msgContent} <span style="color:#aaa;font-size:9px;">${time}</span></div>`;
     }).join("");
     el.scrollTop = el.scrollHeight;
   });
