@@ -1231,8 +1231,8 @@ body.bg-black {
 
 /* ── Avatar Profile Picture ── */
 .profile-avatar-container {
-  width: 65px;
-  height: 65px;
+  width: 75px;
+  height: 75px;
   overflow: hidden;
   background: #c0c0ff;
   display: flex;
