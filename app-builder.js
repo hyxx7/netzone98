@@ -3,7 +3,12 @@
    Create and Share Custom Mini Apps
    ===================================================== */
 
-const ALL_USER_APPS = {};
+import { getFirestore, doc, getDoc, setDoc, updateDoc,
+         deleteDoc, addDoc, getDocs, onSnapshot,
+         collection, query, orderBy, limit,
+         serverTimestamp, arrayUnion, increment, arrayRemove }   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const db = getFirestore();
 
 async function initAppBuilder() {
   const area = document.getElementById("appbuilder-content");
@@ -207,9 +212,9 @@ async function loadMyPublishedApps() {
   
   const appCards = await Promise.all(
     appIds.map(async (id) => {
-      const app = await getDoc(doc(db, "publishedApps", id));
-      if (app.exists()) {
-        return buildAppCard(id, app.data());
+      const appDoc = await getDoc(doc(db, "publishedApps", id));
+      if (appDoc.exists()) {
+        return buildAppCard(id, appDoc.data());
       }
     })
   );
@@ -234,9 +239,9 @@ function buildAppCard(appId, app) {
 async function deletePublishedApp(appId) {
   if (!confirm("Delete this app?")) return;
   await deleteDoc(doc(db, "publishedApps", appId));
-  await fsSetUser(currentUser, {
-    publishedApps: arrayRemove(appId)
-  });
+  const user = await fsGetUser(currentUser);
+  const apps = (user?.publishedApps || []).filter(id => id !== appId);
+  await fsSetUser(currentUser, { publishedApps: apps });
   notify("🗑️ App deleted.");
   await loadMyPublishedApps();
 }
