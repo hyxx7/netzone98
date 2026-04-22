@@ -1,24 +1,32 @@
 /* =====================================================
-   NETZONE 98 — APP.JS (ULTRA ENHANCED)
-   Firebase-powered | Full Customization | Social Features
+   NETZONE 98 — APP.JS (UPDATED)
+   Firebase-powered (Firestore + Auth)
+   With: Message cleanup, file uploads, app builder/browser
    ===================================================== */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, getDocs, onSnapshot, collection, query, orderBy, limit, serverTimestamp, arrayUnion, increment, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+/* ─────────────────────────────────────────────────────
+   FIREBASE SETUP
+   ───────────────────────────────────────────────────── */
+import { initializeApp }                                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword,
+         signInWithEmailAndPassword, signOut }                    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc,
+         deleteDoc, addDoc, getDocs, onSnapshot,
+         collection, query, orderBy, limit,
+         serverTimestamp, arrayUnion, increment, arrayRemove }   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAf7OQ6gKgm5sWSkpEAazoicbtjmHmGzsQ",
-  authDomain: "netzone98-68e0a.firebaseapp.com",
-  projectId: "netzone98-68e0a",
-  storageBucket: "netzone98-68e0a.firebasestorage.app",
+  apiKey:            "AIzaSyAf7OQ6gKgm5sWSkpEAazoicbtjmHmGzsQ",
+  authDomain:        "netzone98-68e0a.firebaseapp.com",
+  projectId:         "netzone98-68e0a",
+  storageBucket:     "netzone98-68e0a.firebasestorage.app",
   messagingSenderId: "336053324952",
-  appId: "1:336053324952:web:b1c3c5e4029a012fe214ed"
+  appId:             "1:336053324952:web:b1c3c5e4029a012fe214ed"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
+const auth        = getAuth(firebaseApp);
+const db          = getFirestore(firebaseApp);
 
 /* ─────────────────────────────────────────────────────
    FIRESTORE HELPERS
@@ -40,13 +48,15 @@ async function fsGetAllUsers() {
 }
 
 async function fsGetPosts(username) {
-  const snap = await getDocs(query(collection(db, "posts", username, "items"), orderBy("ts", "desc")));
+  const snap = await getDocs(
+    query(collection(db, "posts", username, "items"), orderBy("ts", "desc"))
+  );
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-async function fsAddPost(username, content, imageData = null) {
+async function fsAddPost(username, content) {
   await addDoc(collection(db, "posts", username, "items"), {
-    content, imageData, ts: serverTimestamp()
+    content, ts: serverTimestamp()
   });
 }
 
@@ -55,12 +65,16 @@ async function fsDeletePost(username, postId) {
 }
 
 async function fsGetGuestbook(username) {
-  const snap = await getDocs(query(collection(db, "guestbooks", username, "entries"), orderBy("ts", "desc")));
+  const snap = await getDocs(
+    query(collection(db, "guestbooks", username, "entries"), orderBy("ts", "desc"))
+  );
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 async function fsAddGuestbookEntry(targetUser, by, msg) {
-  await addDoc(collection(db, "guestbooks", targetUser, "entries"), { by, msg, ts: serverTimestamp() });
+  await addDoc(collection(db, "guestbooks", targetUser, "entries"), {
+    by, msg, ts: serverTimestamp()
+  });
 }
 
 async function fsGetBadges(username) {
@@ -85,80 +99,41 @@ async function fsRecordVisit(username) {
   await setDoc(doc(db, "stats", username), { visits: increment(1) }, { merge: true });
 }
 
-/* ─────────────────────────────────────────────────────
-   GLOBAL STATE
-   ───────────────────────────────────────────────────── */
-let currentUser = null;
-let currentRoom = null;
-let unsubscribeChat = null;
-let openWindows = {};
-let windowZIndex = 1000;
-let visitorCount = 0;
-
-/* ─────────────────────────────────────────────────────
-   BADGE DEFINITIONS (EXPANDED)
-   ───────────────────────────────────────────────────── */
-const ALL_BADGES = [
-  { id: "newbie", name: "Newbie", icon: "🐣", desc: "Created account" },
-  { id: "developer", name: "Developer", icon: "💻", desc: "Published an app" },
-  { id: "socialite", name: "Socialite", icon: "🦋", desc: "20 visitors" },
-  { id: "collector", name: "Collector", icon: "🏺", desc: "5+ badges" },
-  { id: "designer", name: "Designer", icon: "🎨", desc: "Custom profile" },
-  { id: "chat_master", name: "Chat Master", icon: "💬", desc: "500+ messages" },
-  { id: "guestbook_star", name: "Guestbook Star", icon: "⭐", desc: "10+ guestbook entries" },
-  { id: "explorer", name: "Explorer", icon: "🗺️", desc: "Visited 10 profiles" },
-  { id: "speedster", name: "Speedster", icon: "⚡", desc: "Online for 1 hour" },
-  { id: "trendsetter", name: "Trendsetter", icon: "🚀", desc: "First to use feature" }
-];
-
-/* ─────────────────────────────────────────────────────
-   DESKTOP ICON DRAGGING
-   ───────────────────────────────────────────────────── */
-let draggingIcon = null;
-let iconStartX = 0, iconStartY = 0, iconOffsetX = 0, iconOffsetY = 0;
-
-function startIconDrag(e) {
-  if (e.detail && e.detail > 1) return;
-  draggingIcon = e.target.closest('.desk-icon');
-  if (!draggingIcon) return;
-  
-  iconStartX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-  iconStartY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-  iconOffsetX = draggingIcon.offsetLeft;
-  iconOffsetY = draggingIcon.offsetTop;
-  
-  draggingIcon.style.position = 'absolute';
-  draggingIcon.style.zIndex = 999;
-  draggingIcon.style.opacity = '0.8';
-  
-  document.addEventListener('mousemove', moveIcon);
-  document.addEventListener('touchmove', moveIcon);
-  document.addEventListener('mouseup', stopIconDrag);
-  document.addEventListener('touchend', stopIconDrag);
-  e.preventDefault();
+async function fsGetGlobalVisitors() {
+  const snap = await getDoc(doc(db, "stats", "global"));
+  return snap.exists() ? (snap.data().visitors || 1337) : 1337;
 }
 
-function moveIcon(e) {
-  if (!draggingIcon) return;
-  const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-  const currentY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-  const newX = iconOffsetX + (currentX - iconStartX);
-  const newY = iconOffsetY + (currentY - iconStartY);
-  draggingIcon.style.left = newX + 'px';
-  draggingIcon.style.top = newY + 'px';
+async function fsIncrementGlobalVisitors() {
+  await setDoc(doc(db, "stats", "global"), { visitors: increment(1) }, { merge: true });
+  return fsGetGlobalVisitors();
 }
 
-function stopIconDrag() {
-  if (draggingIcon) draggingIcon.style.opacity = '1';
-  draggingIcon = null;
-  document.removeEventListener('mousemove', moveIcon);
-  document.removeEventListener('touchmove', moveIcon);
-  document.removeEventListener('mouseup', stopIconDrag);
-  document.removeEventListener('touchend', stopIconDrag);
+async function fsGetSettings(username) {
+  const snap = await getDoc(doc(db, "settings", username));
+  return snap.exists() ? snap.data() : {};
+}
+
+async function fsSaveSettings(username, data) {
+  await setDoc(doc(db, "settings", username), data, { merge: true });
 }
 
 /* ─────────────────────────────────────────────────────
-   BACKGROUND & THEME CUSTOMIZATION
+   APP STATE
+   ───────────────────────────────────────────────────── */
+let currentUser   = null;
+let currentRoom   = null;
+let viewingUser   = null;
+let chatPollTimer = null;
+let chatUnsub     = null;
+let clockTimer    = null;
+let openWindows   = {};
+let windowZIndex  = 200;
+let gameState     = null;
+let gameLoop      = null;
+
+/* ─────────────────────────────────────────────────────
+   BACKGROUND CUSTOMIZATION (NEW)
    ───────────────────────────────────────────────────── */
 const BACKGROUND_PRESETS = [
   { name: "Classic Blue", value: "linear-gradient(45deg, #000080, #0000FF)", id: "classic" },
@@ -171,22 +146,11 @@ const BACKGROUND_PRESETS = [
   { name: "Galaxy", value: "radial-gradient(circle, #1a0033, #330066, #000000)", id: "galaxy" },
   { name: "Neon Pink", value: "linear-gradient(45deg, #FF1493, #FF69B4)", id: "neon" },
   { name: "Retro Green", value: "linear-gradient(90deg, #00AA00, #00FF00)", id: "retro" },
-  { name: "Starfield", value: "radial-gradient(circle, #ffffff, #000000)", id: "stars" },
-  { name: "Forest", value: "linear-gradient(135deg, #1a3a1a, #2d5a2d)", id: "forest" }
-];
-
-const PROFILE_THEMES = [
-  { name: "Classic", layout: "classic", color: "#0000FF", bgColor: "#C0C0C0" },
-  { name: "Dark", layout: "terminal", color: "#00FF00", bgColor: "#000000" },
-  { name: "Neon", layout: "classic", color: "#FF00FF", bgColor: "#000000" },
-  { name: "Retro", layout: "classic", color: "#FFFF00", bgColor: "#0000FF" },
-  { name: "Minimal", layout: "classic", color: "#333333", bgColor: "#EEEEEE" }
 ];
 
 async function setDesktopBackground(backgroundId) {
   const preset = BACKGROUND_PRESETS.find(b => b.id === backgroundId);
   if (!preset) return;
-  
   document.getElementById("desktop").style.background = preset.value;
   await fsSetUser(currentUser, { desktopBackground: backgroundId });
   notify("🎨 Background updated!");
@@ -198,665 +162,284 @@ async function setCustomBackground(colorValue) {
   notify("🎨 Custom background set!");
 }
 
-async function applyProfileTheme(themeName) {
-  const theme = PROFILE_THEMES.find(t => t.name === themeName);
-  if (!theme) return;
-  await fsSetUser(currentUser, {
-    profileTheme: themeName,
-    profileLayout: theme.layout,
-    profileColor: theme.color,
-    profileBgColor: theme.bgColor
-  });
-  notify("🎨 Profile theme applied!");
-}
-
 /* ─────────────────────────────────────────────────────
-   PROFILE CUSTOMIZATION (ENHANCED)
+   BOOT SEQUENCE
    ───────────────────────────────────────────────────── */
-async function saveProfile() {
-  const data = {
-    displayName: document.getElementById("edit-displayname").value || "Cool User",
-    avatar: document.getElementById("edit-avatar").value || "👤",
-    bio: document.getElementById("edit-bio").value || "",
-    location: document.getElementById("edit-location").value || "",
-    mood: document.getElementById("edit-mood").value || "😎",
-    song: document.getElementById("edit-song").value || "",
-    website: document.getElementById("edit-website")?.value || "",
-    interests: document.getElementById("edit-interests")?.value || "",
-    joinDate: new Date().toISOString(),
-    lastUpdated: new Date().toISOString()
-  };
-  
-  await fsSetUser(currentUser, data);
-  notify("💾 Profile saved!");
-  await loadProfileView();
-}
+const bootMessages = [
+  "Loading system files...",
+  "Initializing NetZone kernel...",
+  "Mounting user database...",
+  "Starting social engine...",
+  "Calibrating 56k modem... (just kidding, we use DSL now)",
+  "Applying GeoCities patch...",
+  "Almost ready — preparing your cyberspace...",
+  "Welcome to NetZone 98!",
+];
 
-async function saveCustomization() {
-  const layout = document.getElementById("cust-layout").value;
-  const bgColor = document.getElementById("cust-bgcolor").value;
-  const textColor = document.getElementById("cust-textcolor").value;
-  const accentColor = document.getElementById("cust-accentcolor")?.value || "#FF00FF";
-  const borderStyle = document.getElementById("cust-borderstyle")?.value || "solid";
-  const fontStyle = document.getElementById("cust-fontstyle")?.value || "Arial";
-  
-  await fsSetUser(currentUser, {
-    profileLayout: layout,
-    bgColor, textColor, accentColor, borderStyle, fontStyle
-  });
-  
-  notify("✨ Profile customized!");
-}
+window.addEventListener("DOMContentLoaded", async () => {
+  const bar    = document.getElementById("boot-bar");
+  const status = document.getElementById("boot-status");
+  let step = 0;
 
-async function exportProfile() {
-  const user = await fsGetUser(currentUser);
-  const posts = await fsGetPosts(currentUser);
-  
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>${user.displayName}'s Profile</title>
-      <style>
-        body { background: ${user.bgColor || '#C0C0C0'}; color: ${user.textColor || '#000000'}; font-family: ${user.fontStyle || 'Arial'}; }
-        .profile { max-width: 800px; margin: 0 auto; padding: 20px; }
-        .avatar { font-size: 60px; }
-        h1 { margin: 10px 0; }
-        .post { border: 1px solid #999; padding: 10px; margin: 10px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="profile">
-        <div class="avatar">${user.avatar}</div>
-        <h1>${user.displayName}</h1>
-        <p>${user.bio}</p>
-        <p>📍 ${user.location} | 🎵 ${user.song}</p>
-        <h2>Posts</h2>
-        ${posts.map(p => `<div class="post">${p.content}</div>`).join('')}
-      </div>
-    </body>
-    </html>
-  `;
-  
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = currentUser + '.html';
-  a.click();
-  notify("📁 Profile exported!");
-}
+  const visitors = await fsIncrementGlobalVisitors();
+  document.getElementById("visitor-count").textContent = visitors;
 
-/* ─────────────────────────────────────────────────────
-   PROFILE VIEW (ENHANCED)
-   ───────────────────────────────────────────────────── */
-async function loadProfileView() {
-  const user = await fsGetUser(currentUser);
-  const visits = await fsGetVisits(currentUser);
-  const badges = user?.badges || [];
-  const posts = await fsGetPosts(currentUser);
-  
-  const badgeHtml = badges.map(badgeId => {
-    const badge = ALL_BADGES.find(b => b.id === badgeId);
-    return badge ? `<span title="${badge.desc}" style="font-size:20px; cursor:help; margin:2px;">${badge.icon}</span>` : '';
-  }).join('');
-  
-  const area = document.getElementById("profile-preview-area");
-  if (!area) return;
-  
-  area.innerHTML = `
-    <div class="profile-header-row">
-      <div class="profile-avatar-container" style="background: ${user?.bgColor || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};">
-        <div class="profile-avatar-img">${user?.avatar || '👤'}</div>
-      </div>
-      <div style="flex:1;">
-        <div class="profile-name">${user?.displayName || currentUser}</div>
-        <div style="font-size:11px; color:#666;">@${currentUser}</div>
-        <div style="font-size:10px; margin-top:4px;">👁️ ${visits} visitors | 📝 ${posts.length} posts</div>
-      </div>
-    </div>
-    
-    <hr style="margin:8px 0;" />
-    
-    <div style="font-size:11px; line-height:1.6;">
-      <div><strong>Bio:</strong> ${user?.bio || 'No bio yet'}</div>
-      <div><strong>Location:</strong> ${user?.location || 'Cyberspace'}</div>
-      <div><strong>Mood:</strong> ${user?.mood || '😊'}</div>
-      <div><strong>Song:</strong> 🎵 ${user?.song || 'None'}</div>
-      <div><strong>Website:</strong> ${user?.website ? `<a href="${user.website}" target="_blank">${user.website}</a>` : 'None'}</div>
-      <div><strong>Interests:</strong> ${user?.interests || 'None listed'}</div>
-    </div>
-    
-    <div style="margin-top:8px;">
-      <div style="font-size:10px; margin-bottom:4px;"><strong>🏅 Badges (${badges.length}):</strong></div>
-      <div>${badgeHtml || '<i>No badges yet</i>'}</div>
-    </div>
-  `;
-}
-
-/* ─────────────────────────────────────────────────────
-   CHAT WITH PROFILE PICTURES (ENHANCED)
-   ───────────────────────────────────────────────────── */
-async function sendChatMessage() {
-  const input = document.getElementById("chat-input");
-  const msg = input.value.trim();
-  
-  if (!msg || !currentRoom) return;
-  
-  const user = await fsGetUser(currentUser);
-  
-  await addDoc(collection(db, "rooms", currentRoom, "messages"), {
-    user: currentUser,
-    userAvatar: user?.avatar || '👤',
-    userColor: user?.accentColor || '#FF00FF',
-    msg,
-    imageData: null,
-    ts: serverTimestamp()
-  });
-  
-  input.value = "";
-  await cleanupOldMessages(currentRoom);
-  
-  notify("💬 Message sent!");
-}
-
-async function sendChatImageMessage(imageData) {
-  if (!imageData || !currentRoom) return;
-  
-  const user = await fsGetUser(currentUser);
-  
-  await addDoc(collection(db, "rooms", currentRoom, "messages"), {
-    user: currentUser,
-    userAvatar: user?.avatar || '👤',
-    userColor: user?.accentColor || '#FF00FF',
-    msg: "",
-    imageData,
-    ts: serverTimestamp()
-  });
-  
-  await cleanupOldMessages(currentRoom);
-  notify("📸 Image sent!");
-}
-
-function displayChatMessages(messages) {
-  const area = document.getElementById("chat-messages");
-  if (!area) return;
-  
-  area.innerHTML = messages.map(m => `
-    <div style="display:flex; gap:6px; margin-bottom:8px; align-items:flex-start;">
-      <div style="width:32px; height:32px; background:${m.userColor || '#FF00FF'}; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;">
-        ${m.userAvatar || '👤'}
-      </div>
-      <div style="flex:1; min-width:0;">
-        <div style="font-size:9px; color:#666; font-weight:bold;">${m.user}</div>
-        ${m.imageData ? `<img src="${m.imageData}" style="max-width:150px; border-radius:4px; margin-top:2px;" />` : ''}
-        <div style="font-size:10px; word-wrap:break-word; background:#f0f0f0; padding:4px; border-radius:4px; margin-top:2px;">${m.msg}</div>
-      </div>
-    </div>
-  `).join('');
-  
-  area.scrollTop = area.scrollHeight;
-}
-
-async function joinRoom(roomName) {
-  currentRoom = roomName;
-  document.getElementById("chat-room-title").textContent = "💬 " + roomName;
-  
-  if (unsubscribeChat) unsubscribeChat();
-  
-  unsubscribeChat = onSnapshot(
-    query(collection(db, "rooms", roomName, "messages"), orderBy("ts", "asc"), limit(100)),
-    (snap) => {
-      const msgs = snap.docs.map(d => d.data());
-      displayChatMessages(msgs);
+  function tick() {
+    if (step >= bootMessages.length) {
+      setTimeout(showAuthOrDesktop, 400);
+      return;
     }
-  );
-  
-  await cleanupOldMessages(roomName);
+    const pct = Math.round(((step + 1) / bootMessages.length) * 100);
+    bar.style.width = pct + "%";
+    status.textContent = bootMessages[step];
+    step++;
+    setTimeout(tick, 350 + Math.random() * 200);
+  }
+
+  tick();
+});
+
+async function showAuthOrDesktop() {
+  document.getElementById("boot-screen").style.display = "none";
+
+  const saved = sessionStorage.getItem("nz98_session");
+  if (saved) {
+    const userData = await fsGetUser(saved);
+    if (userData) {
+      currentUser = saved;
+      showDesktop();
+      return;
+    }
+  }
+  document.getElementById("auth-screen").classList.remove("hidden");
 }
 
-async function cleanupOldMessages(roomName) {
-  const snap = await getDocs(query(collection(db, "rooms", roomName, "messages"), orderBy("ts", "asc")));
-  const messages = snap.docs;
-  
-  if (messages.length > 1000) {
-    const toDelete = messages.slice(0, messages.length - 1000);
-    for (const doc of toDelete) {
-      await deleteDoc(doc.ref);
-    }
+/* ─────────────────────────────────────────────────────
+   AUTH
+   ───────────────────────────────────────────────────── */
+function switchAuthTab(tab) {
+  document.getElementById("login-form").classList.toggle("hidden",    tab !== "login");
+  document.getElementById("register-form").classList.toggle("hidden", tab !== "register");
+  document.getElementById("tab-login").classList.toggle("active",     tab === "login");
+  document.getElementById("tab-register").classList.toggle("active",  tab === "register");
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  setTimeout(() => el.classList.add("hidden"), 4000);
+}
+
+async function handleLogin() {
+  const username = document.getElementById("login-user").value.trim();
+  const password = document.getElementById("login-pass").value;
+  if (!username || !password) return showError("login-error", "Please fill in all fields.");
+
+  const userData = await fsGetUser(username);
+  if (!userData) return showError("login-error", "Username not found.");
+
+  try {
+    await signInWithEmailAndPassword(auth, userData.email, password);
+    currentUser = username;
+    sessionStorage.setItem("nz98_session", username);
+    fsRecordVisit(username);
+    showDesktop();
+  } catch (e) {
+    showError("login-error", "Wrong password.");
   }
 }
 
-/* ─────────────────────────────────────────────────────
-   FILE UPLOAD HANDLERS
-   ───────────────────────────────────────────────────── */
-function handleAvatarUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById("edit-avatar").value = e.target.result;
-  };
-  reader.readAsDataURL(file);
+async function handleGuestLogin() {
+  const username = "Guest_" + Math.floor(Math.random() * 9000 + 1000);
+  await fsSetUser(username, {
+    password: "",
+    email: "",
+    vibe: "random",
+    profile: {
+      displayName: username,
+      bio: "Just visiting!",
+      avatar: "",
+      location: "The Web",
+      mood: "👀 lurking",
+      bgColor: "#d4d0c8",
+      textColor: "#000000",
+      layout: "classic",
+      font: "'Tahoma', sans-serif",
+      bgImage: "", music: "", song: "",
+      friends: [], blinkText: false, marqueeText: false,
+      vhsMode: false, glitchMode: false,
+      customCursor: false, customCss: "",
+    },
+    joined: serverTimestamp(),
+    isGuest: true,
+    badges: [],
+  });
+  currentUser = username;
+  sessionStorage.setItem("nz98_session", username);
+  showDesktop();
 }
 
-function handlePostImageUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById("post-content").value = JSON.stringify({ image: e.target.result });
-  };
-  reader.readAsDataURL(file);
+async function handleRegister() {
+  const username = document.getElementById("reg-user").value.trim();
+  const password = document.getElementById("reg-pass").value;
+  const email    = document.getElementById("reg-email").value.trim();
+  const vibe     = document.getElementById("reg-vibe").value;
+
+  if (!username || !password || !email) return showError("register-error", "Please fill in all fields.");
+  if (username.length < 3)              return showError("register-error", "Username must be at least 3 characters.");
+  if (password.length < 4)              return showError("register-error", "Password must be at least 4 characters.");
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) return showError("register-error", "Username: letters, numbers, underscores only.");
+
+  const existing = await fsGetUser(username);
+  if (existing) return showError("register-error", "Username already taken!");
+
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await fsSetUser(username, {
+      uid: cred.user.uid,
+      email, vibe,
+      joined: serverTimestamp(),
+      isGuest: false,
+      badges: ["newbie"],
+      profile: {
+        displayName: username,
+        bio: "Hi, I just joined NetZone 98! 🎉",
+        avatar: "", location: "Cyberspace",
+        mood: "😎 just arrived",
+        bgColor: "#000080", textColor: "#ffff00",
+        layout: "classic", font: "'Courier New', monospace",
+        bgImage: "", music: "", song: "",
+        friends: [], blinkText: false, marqueeText: false,
+        vhsMode: false, glitchMode: false,
+        customCursor: false, customCss: ""
+      }
+    });
+    currentUser = username;
+    sessionStorage.setItem("nz98_session", username);
+    showDesktop();
+  } catch (e) {
+    showError("register-error", e.message);
+  }
 }
 
-function handleChatImageUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    await sendChatImageMessage(e.target.result);
-  };
-  reader.readAsDataURL(file);
-}
-
-/* ─────────────────────────────────────────────────────
-   POSTING & TIMELINE
-   ───────────────────────────────────────────────────── */
-async function submitPost() {
-  const content = document.getElementById("post-content").value.trim();
-  if (!content) return notify("⚠️ Write something!");
-  
-  await fsAddPost(currentUser, content);
-  document.getElementById("post-content").value = "";
-  notify("📤 Post published!");
-  await loadProfilePosts();
-}
-
-async function loadProfilePosts() {
-  const posts = await fsGetPosts(currentUser);
-  const list = document.getElementById("my-posts-list");
-  
-  if (!list) return;
-  
-  list.innerHTML = posts.map(p => `
-    <div class="post-card" style="border:1px solid #ccc; padding:8px; margin:4px 0; border-radius:4px;">
-      <div style="font-size:9px; color:#666; margin-bottom:4px;">
-        ${new Date(p.ts?.toDate?.() || p.ts).toLocaleDateString()}
-      </div>
-      ${p.imageData ? `<img src="${p.imageData}" style="max-width:100%; border-radius:4px; margin-bottom:4px;" />` : ''}
-      <div style="font-size:10px;">${p.content}</div>
-      <button class="xp-btn danger" onclick="deletePost('${p.id}')" style="margin-top:4px; font-size:8px;">🗑️</button>
-    </div>
-  `).join('');
-}
-
-async function deletePost(postId) {
-  if (!confirm("Delete post?")) return;
-  await fsDeletePost(currentUser, postId);
-  notify("🗑️ Post deleted!");
-  await loadProfilePosts();
-}
-
-/* ─────────────────────────────────────────────────────
-   EXPLORE & PROFILES
-   ───────────────────────────────────────────────────── */
-async function loadRandomProfile() {
-  const users = await fsGetAllUsers();
-  const usernames = Object.keys(users).filter(u => u !== currentUser);
-  if (!usernames.length) return notify("No other users!");
-  
-  const random = usernames[Math.floor(Math.random() * usernames.length)];
-  await openUserProfile(random);
-}
-
-async function loadAllUsers() {
-  const users = await fsGetAllUsers();
-  const usernames = Object.keys(users).filter(u => u !== currentUser);
-  const area = document.getElementById("explore-content");
-  
-  area.innerHTML = usernames.map(u => `
-    <div class="user-card" style="border:1px solid #ccc; padding:8px; margin:4px 0; cursor:pointer; border-radius:4px;" ondblclick="openUserProfile('${u}')">
-      <div style="font-size:24px;">${users[u]?.avatar || '👤'}</div>
-      <div style="font-size:11px; font-weight:bold;">${users[u]?.displayName || u}</div>
-      <div style="font-size:9px; color:#666;">@${u}</div>
-    </div>
-  `).join('');
-}
-
-async function openUserProfile(username) {
-  const user = await fsGetUser(username);
-  if (!user) return notify("User not found!");
-  
-  await fsRecordVisit(username);
-  
-  const tpl = document.getElementById("tpl-viewuser");
-  if (!tpl) return;
-  
-  const win = tpl.content.cloneNode(true).firstElementChild;
-  const layer = document.getElementById("window-layer");
-  
-  win.style.left = "200px";
-  win.style.top = "120px";
-  win.style.zIndex = ++windowZIndex;
-  win.style.display = "flex";
-  win.style.flexDirection = "column";
-  
-  layer.appendChild(win);
-  makeDraggable(win);
-  openWindows["viewuser_" + username] = win;
-  updateTaskbar();
-  
-  win.querySelector("#viewuser-title").textContent = "👤 " + (user.displayName || username);
-  
-  const body = win.querySelector(".window-body");
-  const posts = await fsGetPosts(username);
-  const badges = user.badges || [];
-  
-  const badgeHtml = badges.map(badgeId => {
-    const badge = ALL_BADGES.find(b => b.id === badgeId);
-    return badge ? `<span title="${badge.desc}" style="font-size:18px; cursor:help; margin:2px;">${badge.icon}</span>` : '';
-  }).join('');
-  
-  body.innerHTML = `
-    <div class="profile-header-row">
-      <div class="profile-avatar-container" style="background: ${user.bgColor || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};">
-        <div class="profile-avatar-img">${user.avatar || '👤'}</div>
-      </div>
-      <div style="flex:1;">
-        <div class="profile-name">${user.displayName || username}</div>
-        <div style="font-size:10px; color:#666;">@${username}</div>
-      </div>
-    </div>
-    <hr style="margin:8px 0;" />
-    <div style="font-size:10px; line-height:1.6;">
-      <div><strong>Bio:</strong> ${user.bio || 'No bio'}</div>
-      <div><strong>Location:</strong> ${user.location || 'Secret'}</div>
-      <div><strong>Mood:</strong> ${user.mood || '😊'}</div>
-    </div>
-    <div style="margin-top:8px; font-size:9px;">
-      <strong>🏅 Badges:</strong><br>
-      ${badgeHtml || '<i>None</i>'}
-    </div>
-    <div style="margin-top:8px;">
-      <button class="xp-btn primary" onclick="signGuestbook('${username}')" style="font-size:9px;">✍️ Sign Guestbook</button>
-    </div>
-    <div style="margin-top:8px; max-height:150px; overflow-y:auto; font-size:9px;">
-      <strong>📝 Posts:</strong>
-      ${posts.map(p => `<div style="background:#f0f0f0; padding:4px; margin:2px 0; border-radius:2px;">${p.content}</div>`).join('')}
-    </div>
-  `;
+async function handleLogout() {
+  await signOut(auth);
+  currentUser = null;
+  sessionStorage.removeItem("nz98_session");
+  if (chatUnsub)    { chatUnsub(); chatUnsub = null; }
+  clearInterval(chatPollTimer);
+  clearInterval(clockTimer);
+  if (gameLoop) cancelAnimationFrame(gameLoop);
+  openWindows = {};
+  document.getElementById("window-layer").innerHTML = "";
+  document.getElementById("taskbar-windows").innerHTML = "";
+  document.getElementById("desktop").classList.add("hidden");
+  document.getElementById("auth-screen").classList.remove("hidden");
+  toggleStartMenu(true);
 }
 
 /* ─────────────────────────────────────────────────────
-   GUESTBOOK
+   DESKTOP
    ───────────────────────────────────────────────────── */
-async function signGuestbook(targetUser) {
-  const msg = prompt(`Sign ${targetUser}'s guestbook:\n\n(Leave blank to cancel)`);
-  if (!msg) return;
+async function showDesktop() {
+  document.getElementById("auth-screen").classList.add("hidden");
+  document.getElementById("desktop").classList.remove("hidden");
+
+  await updateTrayUser();
+  startClock();
+
+  const settings = await fsGetSettings(currentUser);
+  if (settings.bg) applyDesktopBgValue(settings.bg);
   
-  await fsAddGuestbookEntry(targetUser, currentUser, msg);
-  notify("✍️ Guestbook signed!");
+  // Load background if saved
+  const userData = await fsGetUser(currentUser);
+  if (userData?.desktopBackground) {
+    setDesktopBackground(userData.desktopBackground);
+  }
+
+  const p = userData?.profile || {};
+  if (p.vhsMode)      enableVHS(true);
+  if (p.glitchMode)   enableGlitch(true);
+  if (p.customCursor) document.body.classList.add("custom-cursor");
+
+  notify("👋 Welcome back, " + (p.displayName || currentUser) + "!");
 }
 
-async function loadGuestbook() {
-  const entries = await fsGetGuestbook(currentUser);
-  const area = document.getElementById("guestbook-content");
-  
-  if (!area) return;
-  
-  area.innerHTML = `
-    <div class="section-title">Sign My Guestbook</div>
-    <div style="display:flex; gap:4px; margin-bottom:8px; flex-wrap:wrap;">
-      <input class="xp-input" id="gb-message" placeholder="Write something cool..." style="flex:1; min-width:150px;" />
-      <button class="xp-btn primary" onclick="submitGuestbookEntry()" style="font-size:9px;">✍️ Sign</button>
-    </div>
-    
-    <div class="section-title">📖 Entries (${entries.length})</div>
-    <div style="max-height:300px; overflow-y:auto;">
-      ${entries.map(e => `
-        <div class="gb-entry" style="border:1px solid #ccc; padding:6px; margin:4px 0; border-radius:4px; background:#f9f9f9;">
-          <div style="font-size:9px; color:#666; font-weight:bold;">from <strong>${e.by}</strong></div>
-          <div style="font-size:10px; margin-top:2px;">${e.msg}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
+async function updateTrayUser() {
+  const userData = await fsGetUser(currentUser);
+  const p = userData?.profile || {};
+  document.getElementById("tray-user-info").textContent  = "👤 " + (p.displayName || currentUser);
+  document.getElementById("start-username").textContent  = p.displayName || currentUser;
 }
 
-async function submitGuestbookEntry() {
-  const msg = document.getElementById("gb-message").value.trim();
-  if (!msg) return notify("⚠️ Write something!");
-  
-  await fsAddGuestbookEntry(currentUser, currentUser, msg);
-  document.getElementById("gb-message").value = "";
-  notify("✍️ Guestbook entry added!");
-  await loadGuestbook();
+function startClock() {
+  function tick() {
+    const now = new Date();
+    document.getElementById("tray-clock").textContent =
+      now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  tick();
+  clockTimer = setInterval(tick, 10000);
 }
 
 /* ─────────────────────────────────────────────────────
-   BADGES
+   START MENU
    ───────────────────────────────────────────────────── */
-async function loadBadges() {
-  const userBadges = await fsGetBadges(currentUser);
-  const area = document.getElementById("badges-content");
-  
-  if (!area) return;
-  
-  area.innerHTML = `
-    <div class="section-title">🏅 Your Badges (${userBadges.length}/${ALL_BADGES.length})</div>
-    <div id="badges-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
-      ${ALL_BADGES.map(badge => `
-        <div style="text-align:center; padding:8px; border:1px solid ${userBadges.includes(badge.id) ? '#FFD700' : '#ccc'}; border-radius:4px; background:${userBadges.includes(badge.id) ? '#fffacd' : '#f0f0f0'};" title="${badge.desc}">
-          <div style="font-size:28px;">${badge.icon}</div>
-          <div style="font-size:8px; margin-top:4px; font-weight:bold;">${badge.name}</div>
-          <div style="font-size:7px; color:#666; margin-top:2px;">${userBadges.includes(badge.id) ? '✅ Earned' : '🔒 Locked'}</div>
-        </div>
-      `).join('')}
-    </div>
-    <div style="margin-top:12px; font-size:9px; line-height:1.8;">
-      <div><strong>How to earn badges:</strong></div>
-      <ul style="margin:4px 0; padding-left:16px;">
-        <li>${ALL_BADGES[0].name}: ${ALL_BADGES[0].desc}</li>
-        <li>${ALL_BADGES[1].name}: ${ALL_BADGES[1].desc}</li>
-        <li>${ALL_BADGES[2].name}: ${ALL_BADGES[2].desc}</li>
-      </ul>
-    </div>
-  `;
+function toggleStartMenu(forceClose) {
+  const menu = document.getElementById("start-menu");
+  if (forceClose) { menu.classList.add("hidden"); return; }
+  menu.classList.toggle("hidden");
 }
 
-/* ─────────────────────────────────────────────────────
-   SETTINGS
-   ───────────────────────────────────────────────────── */
-async function openSettings() {
-  const tpl = document.getElementById("tpl-settings");
-  if (!tpl) return;
-  
-  const user = await fsGetUser(currentUser);
-  const win = tpl.content.cloneNode(true).firstElementChild;
-  const layer = document.getElementById("window-layer");
-  
-  win.style.left = "240px";
-  win.style.top = "160px";
-  win.style.zIndex = ++windowZIndex;
-  win.style.display = "flex";
-  win.style.flexDirection = "column";
-  
-  layer.appendChild(win);
-  makeDraggable(win);
-  openWindows["settings"] = win;
-  updateTaskbar();
-  
-  const settingsArea = win.querySelector("#settings-content");
-  if (!settingsArea) return;
-  
-  settingsArea.innerHTML = `
-    <div class="tab-bar">
-      <div class="tab active" onclick="switchSettingsTab('general', this)">General</div>
-      <div class="tab" onclick="switchSettingsTab('background', this)">Background</div>
-      <div class="tab" onclick="switchSettingsTab('profile', this)">Profile Theme</div>
-      <div class="tab" onclick="switchSettingsTab('privacy', this)">Privacy</div>
-    </div>
-    
-    <div id="settings-general" class="tab-content" style="overflow-y:auto;">
-      <div class="section-title">⚙️ General Settings</div>
-      <table class="form-table">
-        <tr>
-          <td class="form-label">Username:</td>
-          <td><strong>${currentUser}</strong> (cannot change)</td>
-        </tr>
-        <tr>
-          <td class="form-label">Account Age:</td>
-          <td>${Math.floor((Date.now() - new Date(user?.joinDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24))} days</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td><button class="xp-btn danger" onclick="handleLogout()" style="margin-top:8px;">🚪 Log Out</button></td>
-        </tr>
-      </table>
-    </div>
-    
-    <div id="settings-background" class="tab-content hidden" style="overflow-y:auto;">
-      <div class="section-title">🎨 Desktop Background</div>
-      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-bottom:12px;">
-        ${BACKGROUND_PRESETS.map(bg => `
-          <button class="xp-btn" onclick="setDesktopBackground('${bg.id}')" style="background:${bg.value}; color:white; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">${bg.name}</button>
-        `).join('')}
-      </div>
-      <div class="section-title">Or Custom Color</div>
-      <div style="display:flex; gap:4px;">
-        <input type="color" id="custom-bg-color" value="#0000FF" style="width:60px; height:30px;" />
-        <button class="xp-btn primary" onclick="setCustomBackground(document.getElementById('custom-bg-color').value)">Set</button>
-      </div>
-    </div>
-    
-    <div id="settings-profile" class="tab-content hidden" style="overflow-y:auto;">
-      <div class="section-title">🎨 Profile Theme Presets</div>
-      <div style="display:grid; grid-template-columns:1fr; gap:4px;">
-        ${PROFILE_THEMES.map(t => `
-          <button class="xp-btn" onclick="applyProfileTheme('${t.name}')" style="text-align:left; padding:8px;">${t.name} - <span style="color:${t.color};">■</span> ${t.color}</button>
-        `).join('')}
-      </div>
-    </div>
-    
-    <div id="settings-privacy" class="tab-content hidden" style="padding:8px; overflow-y:auto;">
-      <div class="section-title">🔒 Privacy</div>
-      <div style="font-size:9px; line-height:1.8;">
-        <div style="margin-bottom:8px;">
-          <label>
-            <input type="checkbox" id="privacy-show-email" ${user?.showEmail ? 'checked' : ''} />
-            Show email on profile
-          </label>
-        </div>
-        <div style="margin-bottom:8px;">
-          <label>
-            <input type="checkbox" id="privacy-hide-visitors" ${user?.hideVisitors ? 'checked' : ''} />
-            Hide visitor count
-          </label>
-        </div>
-        <button class="xp-btn primary" onclick="savePrivacySettings()" style="margin-top:8px; font-size:9px;">💾 Save</button>
-      </div>
-    </div>
-  `;
-}
-
-function switchSettingsTab(tab, element) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('settings-' + tab).classList.remove('hidden');
-  element.classList.add('active');
-}
-
-async function savePrivacySettings() {
-  const settings = {
-    showEmail: document.getElementById('privacy-show-email').checked,
-    hideVisitors: document.getElementById('privacy-hide-visitors').checked
-  };
-  await fsSetUser(currentUser, settings);
-  notify("🔒 Privacy settings saved!");
-}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#start-menu") && !e.target.closest("#start-btn")) {
+    document.getElementById("start-menu").classList.add("hidden");
+  }
+});
 
 /* ─────────────────────────────────────────────────────
    WINDOW MANAGEMENT
    ───────────────────────────────────────────────────── */
 function openApp(appId) {
-  const tplMap = {
-    profile: 'tpl-profile',
-    explore: 'tpl-explore',
-    chat: 'tpl-chat',
-    guestbook: 'tpl-guestbook',
-    games: 'tpl-games',
-    badges: 'tpl-badges',
-    settings: 'tpl-settings',
-    appbuilder: 'tpl-appbuilder',
-    appbrowser: 'tpl-appbrowser'
-  };
-  
-  const tplId = tplMap[appId];
-  if (!tplId) return;
-  
-  const tpl = document.getElementById(tplId);
-  if (!tpl) return notify("⚠️ Window template not found");
-  
+  if (openWindows[appId]) {
+    const win = openWindows[appId];
+    win.style.display = "flex";
+    win.style.zIndex = ++windowZIndex;
+    updateTaskbar();
+    return;
+  }
+
+  const tpl = document.getElementById("tpl-" + appId);
+  if (!tpl) return;
+
   const win = tpl.content.cloneNode(true).firstElementChild;
   const layer = document.getElementById("window-layer");
-  if (!layer) return;
-  
-  win.style.left = (100 + Math.random() * 100) + "px";
-  win.style.top = (80 + Math.random() * 100) + "px";
+
+  const offset = Object.keys(openWindows).length * 20;
+  win.style.left = (80 + offset) + "px";
+  win.style.top  = (40 + offset) + "px";
   win.style.zIndex = ++windowZIndex;
   win.style.display = "flex";
   win.style.flexDirection = "column";
-  
-  layer.appendChild(win);
-  makeDraggable(win);
-  openWindows[appId] = win;
-  updateTaskbar();
-  
-  if (appId === 'profile') {
-    initProfileTab();
-  } else if (appId === 'explore') {
-    loadAllUsers();
-  } else if (appId === 'chat') {
-    loadChatRooms();
-  } else if (appId === 'guestbook') {
-    loadGuestbook();
-  } else if (appId === 'badges') {
-    loadBadges();
-  } else if (appId === 'appbuilder') {
-    initAppBuilder();
-  } else if (appId === 'appbrowser') {
-    initAppBrowser();
-  }
-}
 
-function makeDraggable(winElement) {
-  const titlebar = winElement.querySelector(".window-titlebar");
-  if (!titlebar) return;
-  
-  let offset = { x: 0, y: 0 };
-  let isDown = false;
-  
-  titlebar.addEventListener("mousedown", (e) => {
-    isDown = true;
-    offset.x = e.clientX - winElement.offsetLeft;
-    offset.y = e.clientY - winElement.offsetTop;
-    titlebar.style.cursor = "grabbing";
-  });
-  
-  document.addEventListener("mousemove", (e) => {
-    if (!isDown) return;
-    winElement.style.left = (e.clientX - offset.x) + "px";
-    winElement.style.top = (e.clientY - offset.y) + "px";
-  });
-  
-  document.addEventListener("mouseup", () => {
-    isDown = false;
-    titlebar.style.cursor = "grab";
-  });
+  layer.appendChild(win);
+  openWindows[appId] = win;
+
+  makeDraggable(win);
+  updateTaskbar();
+
+  switch (appId) {
+    case "profile":   initProfile();    break;
+    case "explore":   initExplore();    break;
+    case "chat":      initChat();       break;
+    case "guestbook": initGuestbook();  break;
+    case "games":     initGames();      break;
+    case "badges":    initBadges();     break;
+    case "settings":  initSettings();   break;
+    case "appbuilder": initAppBuilder(); break;
+    case "appbrowser": initAppBrowser(); break;
+  }
 }
 
 function closeWindow(appId) {
@@ -865,119 +448,1123 @@ function closeWindow(appId) {
     win.remove();
     delete openWindows[appId];
   }
+  if (appId === "chat") {
+    if (chatUnsub)     { chatUnsub(); chatUnsub = null; }
+    if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+  }
+  if (appId === "games" && gameLoop) {
+    cancelAnimationFrame(gameLoop);
+    gameLoop = null;
+  }
   updateTaskbar();
 }
 
 function minimizeWindow(appId) {
   const win = openWindows[appId];
-  if (win) {
-    win.style.display = "none";
-  }
+  if (win) win.style.display = "none";
   updateTaskbar();
 }
 
 function updateTaskbar() {
   const bar = document.getElementById("taskbar-windows");
-  if (!bar) return;
-  
-  bar.innerHTML = Object.keys(openWindows).map(appId => `
-    <button class="taskbar-item" onclick="toggleWindow('${appId}')">${appId}</button>
-  `).join('');
+  bar.innerHTML = "";
+  for (const [id, win] of Object.entries(openWindows)) {
+    const titleEl = win.querySelector(".window-title");
+    const title   = titleEl ? titleEl.textContent : id;
+    const btn = document.createElement("button");
+    btn.className = "taskbar-btn" + (win.style.display !== "none" ? " active" : "");
+    btn.textContent = title;
+    btn.onclick = () => {
+      if (win.style.display === "none") {
+        win.style.display = "flex";
+        win.style.zIndex = ++windowZIndex;
+      } else {
+        win.style.display = "none";
+      }
+      updateTaskbar();
+    };
+    bar.appendChild(btn);
+  }
 }
 
-function toggleWindow(appId) {
+function bringToFront(appId) {
   const win = openWindows[appId];
-  if (!win) return;
-  
-  if (win.style.display === "none") {
-    win.style.display = "flex";
-  } else {
-    win.style.display = "none";
-  }
+  if (win) win.style.zIndex = ++windowZIndex;
 }
 
 /* ─────────────────────────────────────────────────────
-   INIT & STARTUP
+   DRAGGING
    ───────────────────────────────────────────────────── */
-async function initBootScreen() {
-  const visitorSnap = await getDocs(collection(db, "stats"));
-  visitorCount = visitorSnap.size;
-  document.getElementById("visitor-count").textContent = visitorCount;
-  
-  let progress = 0;
-  const bar = document.getElementById("boot-bar");
-  const status = document.getElementById("boot-status");
-  
-  const messages = [
-    "Loading system files...",
-    "Initializing Firestore...",
-    "Loading user profiles...",
-    "Preparing chat rooms...",
-    "Setting up desktop...",
-    "Welcome to NetZone 98!"
-  ];
-  
-  for (let i = 0; i < messages.length; i++) {
-    progress = (i / messages.length) * 100;
-    bar.style.width = progress + "%";
-    status.textContent = messages[i];
-    await new Promise(r => setTimeout(r, 400));
-  }
-  
-  bar.style.width = "100%";
-  status.textContent = "Ready!";
-  await new Promise(r => setTimeout(r, 500));
-  
-  document.getElementById("boot-screen").classList.add("hidden");
-  document.getElementById("desktop").classList.remove("hidden");
-}
+function makeDraggable(win) {
+  const titlebar = win.querySelector(".window-titlebar");
+  if (!titlebar) return;
 
-async function initProfileTab() {
-  const user = await fsGetUser(currentUser);
-  
-  document.getElementById("edit-displayname").value = user?.displayName || "";
-  document.getElementById("edit-avatar").value = user?.avatar || "👤";
-  document.getElementById("edit-bio").value = user?.bio || "";
-  document.getElementById("edit-location").value = user?.location || "";
-  document.getElementById("edit-mood").value = user?.mood || "😊";
-  document.getElementById("edit-song").value = user?.song || "";
-  document.getElementById("edit-website").value = user?.website || "";
-  document.getElementById("edit-interests").value = user?.interests || "";
-  
-  await loadProfileView();
-  await loadProfilePosts();
-}
+  let startX, startY, startLeft, startTop;
+  let dragging = false;
 
-function updateClock() {
-  const clock = document.getElementById("tray-clock");
-  if (clock) {
-    clock.textContent = new Date().toLocaleTimeString();
-  }
-}
+  titlebar.addEventListener("mousedown", (e) => {
+    if (e.target.classList.contains("win-btn")) return;
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    const rect = win.getBoundingClientRect();
+    startLeft = parseInt(win.style.left) || rect.left;
+    startTop  = parseInt(win.style.top)  || rect.top;
+    win.style.zIndex = ++windowZIndex;
+    e.preventDefault();
+  });
 
-async function handleLogout() {
-  if (!confirm("Log out?")) return;
-  await signOut(auth);
-  location.reload();
-}
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    win.style.left = (startLeft + e.clientX - startX) + "px";
+    win.style.top  = Math.max(0, startTop  + e.clientY - startY) + "px";
+  });
 
-function switchAuthTab(tab, element) {
-  document.getElementById("login-form").classList.toggle("hidden", tab !== "login");
-  document.getElementById("register-form").classList.toggle("hidden", tab !== "register");
-  document.getElementById("tab-login").classList.toggle("active", tab === "login");
-  document.getElementById("tab-register").classList.toggle("active", tab === "register");
-}
-
-function notify(msg) {
-  const notif = document.getElementById("notification");
-  if (!notif) return;
-  notif.textContent = msg;
-  notif.classList.remove("hidden");
-  setTimeout(() => notif.classList.add("hidden"), 3000);
+  document.addEventListener("mouseup", () => { dragging = false; });
+  win.addEventListener("mousedown", () => { win.style.zIndex = ++windowZIndex; });
 }
 
 /* ─────────────────────────────────────────────────────
-   APP BUILDER (INLINE - EXPANDED)
+   PROFILE APP
+   ───────────────────────────────────────────────────── */
+async function initProfile() {
+  await renderProfilePreview();
+  await loadProfileEdit();
+  await loadCustomization();
+  await loadMyPosts();
+}
+
+function switchProfileTab(tab, el) {
+  ["view", "edit", "customize", "posts"].forEach(t => {
+    document.getElementById("profile-tab-" + t)?.classList.toggle("hidden", t !== tab);
+  });
+  document.querySelectorAll("#win-profile .tab").forEach(t => t.classList.remove("active"));
+  if (el) el.classList.add("active");
+
+  if (tab === "view")  renderProfilePreview();
+  if (tab === "posts") loadMyPosts();
+}
+
+async function renderProfilePreview() {
+  const area = document.getElementById("profile-preview-area");
+  if (!area) return;
+  const user = await fsGetUser(currentUser);
+  if (!user) return;
+  area.innerHTML = buildProfileHTML(currentUser, user, true);
+  applyCSSEffects(user.profile, area);
+}
+
+function buildProfileHTML(username, user, isOwn) {
+  const p = user.profile || {};
+  if (p.layout === "terminal") return buildTerminalLayout(username, user);
+  if (p.layout === "room")     return buildRoomLayout(username, user);
+  return buildClassicLayout(username, user, isOwn);
+}
+
+function buildClassicLayout(username, user, isOwn) {
+  const p = user.profile || {};
+
+  const friends = (p.friends || []).map(f =>
+    `<span class="friend-chip" onclick="viewUserProfile('${f}')">${f}</span>`
+  ).join("");
+
+  const avatarContent = p.avatar
+    ? `<div class="profile-avatar-container">
+         <img src="${p.avatar}" alt="avatar" class="profile-avatar-img" />
+       </div>`
+    : `<div class="profile-avatar-container placeholder">👤</div>`;
+
+  const marqueeEl = p.marqueeText
+    ? `<marquee behavior="scroll" direction="left" scrollamount="2" style="color:${p.textColor || "#fff"}; font-family:VT323,monospace; font-size:18px;">
+        ★ Welcome to ${p.displayName || username}'s page! ★ &nbsp;&nbsp; ${p.bio || ""} &nbsp;&nbsp; ★
+       </marquee>`
+    : "";
+
+  const blinkStyle = p.blinkText ? "animation: blink 0.8s step-end infinite;" : "";
+
+  const visitCountId = "visit-count-" + username;
+
+  const html = `
+    <div style="
+      background-color: ${p.bgColor || "#000080"};
+      color: ${p.textColor || "#ffff00"};
+      font-family: ${p.font || "'Courier New', monospace"};
+      padding: 10px; min-height: 280px;
+      ${p.bgImage ? `background-image: url('${p.bgImage}'); background-repeat: repeat;` : ""}
+    ">
+      ${marqueeEl}
+      <div class="profile-header-row">
+        <div class="profile-avatar">${avatarContent}</div>
+        <div style="flex:1;">
+          <div class="profile-name" style="color:${p.textColor || "#ffff00"}; ${blinkStyle}">
+            ${p.displayName || username}
+          </div>
+          <div class="profile-mood">Mood: ${p.mood || "🤔 unknown"}</div>
+          <div class="profile-location">📍 ${p.location || "Unknown"}</div>
+          <div style="margin-top:4px;">
+            <span class="retro-badge blue">${user.vibe || "random"}</span>
+          </div>
+        </div>
+        <div>
+          <div class="profile-visitor">Visitor #<span class="hit-counter" id="${visitCountId}">000000</span></div>
+          <div style="font-size:10px; margin-top:2px; text-align:right; color:${p.textColor || "#ffff00"};">
+            Joined: ${user.joined?.toDate ? user.joined.toDate().toLocaleDateString() : new Date(user.joined || Date.now()).toLocaleDateString()}
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-section-header">✦ About Me</div>
+      <div class="profile-bio-box">${p.bio || "(no bio yet)"}</div>
+
+      ${p.song ? `<div class="profile-song">♪ Now playing: ${p.song}</div>` : ""}
+
+      ${friends ? `
+        <div class="profile-section-header">★ Top Friends</div>
+        <div class="profile-top-friends">${friends}</div>
+      ` : ""}
+
+      <div class="profile-section-header">🏅 Badges</div>
+      <div class="profile-badges-row" id="inline-badges-${username}"></div>
+
+      <div style="margin-top:8px; font-size:10px; text-align:center; color:${p.textColor || "#ffff00"}; opacity:0.6;">
+        ⚠️ This page best viewed in NetZone 98 at 800×600 resolution ⚠️
+      </div>
+
+      ${p.music ? `<audio id="profile-audio" src="${p.music}" autoplay loop style="display:none;"></audio>` : ""}
+    </div>
+  `;
+
+  setTimeout(async () => {
+    const vc = document.getElementById(visitCountId);
+    if (vc) {
+      const visits = await fsGetVisits(username);
+      vc.textContent = String(visits).padStart(6, "0");
+    }
+    const badgeEl = document.getElementById("inline-badges-" + username);
+    if (badgeEl) badgeEl.innerHTML = await getBadgesHTML(username);
+  }, 50);
+
+  return html;
+}
+
+function buildTerminalLayout(username, user) {
+  const p = user.profile || {};
+  const joined = user.joined?.toDate
+    ? user.joined.toDate().toLocaleDateString()
+    : new Date(user.joined || Date.now()).toLocaleDateString();
+  return `
+    <div class="profile-terminal" id="terminal-${username}">
+      <div class="terminal-line">NetZone Terminal v2.0 — Connected.</div>
+      <div class="terminal-line">─────────────────────────────────────</div>
+      <div class="terminal-line">USER: <span style="color:#fff">${p.displayName || username}</span></div>
+      <div class="terminal-line">VIBE: <span style="color:#fff">${user.vibe || "unknown"}</span></div>
+      <div class="terminal-line">LOC:  <span style="color:#fff">${p.location || "unknown"}</span></div>
+      <div class="terminal-line">MOOD: <span style="color:#fff">${p.mood || "unknown"}</span></div>
+      <div class="terminal-line">JOIN: <span style="color:#fff">${joined}</span></div>
+      <div class="terminal-line">─────────────────────────────────────</div>
+      <div class="terminal-line">BIO:  <span style="color:#88ff88">${p.bio || "N/A"}</span></div>
+      <div class="terminal-line">─────────────────────────────────────</div>
+      <div class="terminal-line" style="color:#aaa;">Type a command below:</div>
+      <div class="terminal-line">
+        <span style="color:#00ff44;">root@netzone:~$</span>
+        <input class="terminal-cmd-input" id="term-input-${username}"
+          placeholder="view posts / open gallery / help"
+          onkeydown="handleTerminalCmd(event,'${username}')" />
+      </div>
+      <div id="term-output-${username}" style="margin-top:8px;"></div>
+    </div>
+  `;
+}
+
+function buildRoomLayout(username, user) {
+  const p = user.profile || {};
+  const objects = ["🖥️", "🛋️", "🎵", "📻", "🖼️", "🌱", "🐱", "🎮", "📚", "🪴"];
+  const placed  = objects.slice(0, 7).map((obj, i) => {
+    const x = 20 + (i % 4) * 100;
+    const y = 30 + Math.floor(i / 4) * 100;
+    return `<div class="room-object" style="left:${x}px; top:${y}px;" title="${obj}">${obj}</div>`;
+  }).join("");
+  return `
+    <div class="profile-room">
+      <div class="room-wall"></div>
+      ${placed}
+      <div class="room-name-plate">${p.displayName || username}'s Room</div>
+      <div class="room-floor"></div>
+    </div>
+  `;
+}
+
+async function handleTerminalCmd(e, username) {
+  if (e.key !== "Enter") return;
+  const input  = document.getElementById("term-input-" + username);
+  const output = document.getElementById("term-output-" + username);
+  const cmd    = input.value.trim().toLowerCase();
+  input.value  = "";
+
+  let result;
+  if (cmd === "clear")        { output.innerHTML = ""; return; }
+  else if (cmd === "help")    result = "Commands: view posts, open gallery, show bio, show friends, clear";
+  else if (cmd === "view posts") {
+    const posts = await fsGetPosts(username);
+    result = posts.length
+      ? posts.slice(0, 3).map((p, i) => `[${i+1}] ${p.content?.substring(0, 60)}...`).join("<br/>")
+      : "No posts found.";
+  }
+  else if (cmd === "show bio") {
+    const u = await fsGetUser(username);
+    result = u?.profile?.bio || "No bio set.";
+  }
+  else if (cmd === "show friends") {
+    const u = await fsGetUser(username);
+    result = u?.profile?.friends?.join(", ") || "No friends listed.";
+  }
+  else if (cmd === "open gallery") result = "[ Gallery not found — upload images in Edit Profile ]";
+  else result = `Command not found: ${cmd}. Type 'help' for commands.`;
+
+  output.innerHTML += `<div style="color:#ffff44;">$ ${cmd}</div>`;
+  output.innerHTML += `<div style="color:#aaffaa; margin-bottom:4px;">${result}</div>`;
+  output.scrollTop = output.scrollHeight;
+}
+
+function applyCSSEffects(p, container) {
+  if (!p || !container) return;
+  if (p.customCss) {
+    let style = container.querySelector(".custom-css-inject");
+    if (!style) {
+      style = document.createElement("style");
+      style.className = "custom-css-inject";
+      container.appendChild(style);
+    }
+    style.textContent = p.customCss;
+  }
+}
+
+async function loadProfileEdit() {
+  const user = await fsGetUser(currentUser);
+  const p = user?.profile || {};
+  setValue("edit-displayname", p.displayName || "");
+  setValue("edit-avatar",      p.avatar      || "");
+  setValue("edit-bio",         p.bio         || "");
+  setValue("edit-location",    p.location    || "");
+  setValue("edit-mood",        p.mood        || "");
+  setValue("edit-music",       p.music       || "");
+  setValue("edit-song",        p.song        || "");
+  setValue("edit-friends",     (p.friends || []).join(", "));
+}
+
+async function loadCustomization() {
+  const user = await fsGetUser(currentUser);
+  const p = user?.profile || {};
+  setValue("cust-layout",    p.layout    || "classic");
+  setValue("cust-bgcolor",   p.bgColor   || "#000080");
+  setValue("cust-textcolor", p.textColor || "#ffff00");
+  setValue("cust-bgimage",   p.bgImage   || "");
+  setValue("cust-font",      p.font      || "'Courier New', monospace");
+  setValue("cust-css",       p.customCss || "");
+  setChecked("cust-blink",   p.blinkText    || false);
+  setChecked("cust-marquee", p.marqueeText  || false);
+  setChecked("cust-vhs",     p.vhsMode      || false);
+  setChecked("cust-glitch",  p.glitchMode   || false);
+  setChecked("cust-cursor",  p.customCursor || false);
+}
+
+async function saveProfile() {
+  const profile = {
+    displayName: document.getElementById("edit-displayname").value.trim() || currentUser,
+    avatar:      document.getElementById("edit-avatar").value.trim(),
+    bio:         document.getElementById("edit-bio").value.trim(),
+    location:    document.getElementById("edit-location").value.trim(),
+    mood:        document.getElementById("edit-mood").value.trim(),
+    music:       document.getElementById("edit-music").value.trim(),
+    song:        document.getElementById("edit-song").value.trim(),
+    friends:     document.getElementById("edit-friends").value.split(",").map(s => s.trim()).filter(Boolean),
+  };
+
+  const user = await fsGetUser(currentUser);
+  const merged = { ...user.profile, ...profile };
+  await fsSetUser(currentUser, { profile: merged });
+
+  await updateTrayUser();
+  notify("✅ Profile saved!");
+  fsAwardBadge(currentUser, "customizer");
+}
+
+async function saveCustomization() {
+  const user = await fsGetUser(currentUser);
+  const existing = user?.profile || {};
+
+  const profile = {
+    ...existing,
+    layout:       document.getElementById("cust-layout").value,
+    bgColor:      document.getElementById("cust-bgcolor").value,
+    textColor:    document.getElementById("cust-textcolor").value,
+    bgImage:      document.getElementById("cust-bgimage").value.trim(),
+    font:         document.getElementById("cust-font").value,
+    customCss:    document.getElementById("cust-css").value,
+    blinkText:    document.getElementById("cust-blink").checked,
+    marqueeText:  document.getElementById("cust-marquee").checked,
+    vhsMode:      document.getElementById("cust-vhs").checked,
+    glitchMode:   document.getElementById("cust-glitch").checked,
+    customCursor: document.getElementById("cust-cursor").checked,
+  };
+  
+  // Save accent color if element exists
+  const accentColorEl = document.getElementById("cust-accentcolor");
+  if (accentColorEl) {
+    await fsSetUser(currentUser, { accentColor: accentColorEl.value });
+  }
+
+  await fsSetUser(currentUser, { profile });
+
+  enableVHS(profile.vhsMode);
+  enableGlitch(profile.glitchMode);
+  document.body.classList.toggle("custom-cursor", profile.customCursor);
+
+  renderProfilePreview();
+  notify("🎨 Theme applied!");
+  fsAwardBadge(currentUser, "designer");
+}
+
+async function exportProfile() {
+  const user = await fsGetUser(currentUser);
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>${user.profile.displayName || currentUser} — NetZone 98 Profile</title>
+  <style>
+    body { margin: 0; padding: 0; }
+    .profile-name { font-family: VT323, monospace; font-size: 32px; }
+    .hit-counter { background:#000; color:#0f0; font-family:monospace; padding:2px 8px; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  </style>
+</head>
+<body>
+  ${buildProfileHTML(currentUser, user, false)}
+  <p style="text-align:center; font-size:10px; margin-top:16px;">
+    Made with ❤️ on NetZone 98 — ${new Date().toLocaleDateString()}
+  </p>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: "text/html" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = currentUser + "_netzone98.html";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  notify("📁 Profile exported!");
+}
+
+/* ─────────────────────────────────────────────────────
+   FILE UPLOAD HANDLING (NEW)
+   ───────────────────────────────────────────────────── */
+async function handleAvatarUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result;
+    document.getElementById("edit-avatar").value = base64;
+    notify("🖼️ Avatar uploaded! Click Save to apply.");
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handlePostImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById("post-content").value = e.target.result;
+    notify("📸 Image loaded! Click Post to share.");
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handleChatImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const msg = e.target.result;
+    const input = document.getElementById("chat-input");
+    if (currentRoom) {
+      await addDoc(collection(db, "chatRooms", currentRoom, "messages"), {
+        user: currentUser,
+        msg,
+        ts: serverTimestamp()
+      });
+      await cleanupOldMessages(currentRoom);
+      notify("📸 Image sent!");
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ─────────────────────────────────────────────────────
+   POSTS
+   ───────────────────────────────────────────────────── */
+async function loadMyPosts() {
+  const list = document.getElementById("my-posts-list");
+  if (!list) return;
+  const posts = await fsGetPosts(currentUser);
+  if (!posts.length) { list.innerHTML = "<i style='color:#888;'>No posts yet.</i>"; return; }
+
+  list.innerHTML = posts.map(p => {
+    const isImage = /\.(gif|png|jpg|jpeg|webp)$/i.test(p.content?.trim()) || p.content?.trim().startsWith("data:image");
+    const contentHtml = isImage
+      ? `<img src="${p.content.trim()}" alt="" style="max-width:100%; max-height:150px; display:block; margin-top:4px;" />`
+      : p.content;
+    const ts = p.ts?.toDate ? p.ts.toDate().toLocaleString() : "just now";
+    return `
+      <div class="post-card">
+        <div class="post-header">
+          <span>📅 ${ts}</span>
+          <button class="post-delete-btn" onclick="deletePost('${p.id}')">✕ Delete</button>
+        </div>
+        <div class="post-content">${contentHtml}</div>
+      </div>`;
+  }).join("");
+}
+
+async function submitPost() {
+  const content = document.getElementById("post-content").value.trim();
+  if (!content) return;
+  await fsAddPost(currentUser, content);
+  document.getElementById("post-content").value = "";
+  await loadMyPosts();
+  notify("📤 Posted!");
+  fsAwardBadge(currentUser, "poster");
+}
+
+async function deletePost(postId) {
+  await fsDeletePost(currentUser, postId);
+  await loadMyPosts();
+}
+
+/* ─────────────────────────────────────────────────────
+   EXPLORE APP
+   ───────────────────────────────────────────────────── */
+function initExplore() {
+  loadAllUsers();
+}
+
+async function loadAllUsers() {
+  const content = document.getElementById("explore-content");
+  if (!content) return;
+  content.innerHTML = "<i style='color:#888;'>Loading users...</i>";
+  const users = await fsGetAllUsers();
+  const others = Object.entries(users).filter(([u]) => u !== currentUser);
+  if (!others.length) {
+    content.innerHTML = "<div class='explore-hint'>No other users yet. Be the first to sign up!</div>";
+    return;
+  }
+  const cards = await Promise.all(others.map(([uname, u]) => userCardHTML(uname, u)));
+  content.innerHTML = cards.join("");
+}
+
+async function loadTopProfiles() {
+  const content = document.getElementById("explore-content");
+  if (!content) return;
+  content.innerHTML = "<i style='color:#888;'>Loading...</i>";
+  const users = await fsGetAllUsers();
+  const withVisits = await Promise.all(
+    Object.entries(users).map(async ([uname, u]) => ({
+      uname, u, visits: await fsGetVisits(uname)
+    }))
+  );
+  withVisits.sort((a, b) => b.visits - a.visits);
+  const cards = await Promise.all(withVisits.map(({ uname, u }) => userCardHTML(uname, u)));
+  content.innerHTML = `<div class="section-title">🏆 Top Visited</div>` + cards.join("");
+}
+
+async function loadRandomProfile() {
+  const users = await fsGetAllUsers();
+  const keys  = Object.keys(users).filter(u => u !== currentUser);
+  if (!keys.length) return notify("No other users to explore!");
+  viewUserProfile(keys[Math.floor(Math.random() * keys.length)]);
+}
+
+async function userCardHTML(username, user) {
+  const p      = user.profile || {};
+  const visits = await fsGetVisits(username);
+  const avatar = p.avatar
+    ? `<img src="${p.avatar}" style="width:36px;height:36px;object-fit:cover;" onerror="this.style.display='none'" />`
+    : "👤";
+  return `
+    <div class="user-card" onclick="viewUserProfile('${username}')">
+      <div class="user-card-avatar">${avatar}</div>
+      <div class="user-card-info">
+        <div class="user-card-name">${p.displayName || username}</div>
+        <div class="user-card-bio">${p.bio || "(no bio)"}</div>
+      </div>
+      <div class="user-card-visits">${visits}</div>
+    </div>`;
+}
+
+/* ─────────────────────────────────────────────────────
+   VIEW USER PROFILE
+   ───────────────────────────────────────────────────── */
+async function viewUserProfile(username) {
+  const user = await fsGetUser(username);
+  if (!user) return notify("User not found: " + username);
+
+  viewingUser = username;
+  fsRecordVisit(username);
+  fsAwardBadge(currentUser, "explorer");
+
+  if (openWindows["viewuser"]) closeWindow("viewuser");
+
+  const tpl   = document.getElementById("tpl-viewuser");
+  const win   = tpl.content.cloneNode(true).firstElementChild;
+  const layer = document.getElementById("window-layer");
+
+  const offset = Object.keys(openWindows).length * 20;
+  win.style.left = (100 + offset) + "px";
+  win.style.top  = (60  + offset) + "px";
+  win.style.zIndex = ++windowZIndex;
+  win.style.display = "flex";
+  win.style.flexDirection = "column";
+
+  layer.appendChild(win);
+  openWindows["viewuser"] = win;
+  makeDraggable(win);
+  updateTaskbar();
+
+  const p = user.profile || {};
+  win.querySelector("#viewuser-title").textContent = "👤 " + (p.displayName || username) + "'s Profile";
+  const content = win.querySelector("#viewuser-content");
+  content.innerHTML = buildProfileHTML(username, user, false);
+  applyCSSEffects(p, content);
+
+  const gbs = await fsGetGuestbook(username);
+  const gbSection = document.createElement("div");
+  gbSection.style.marginTop = "8px";
+  gbSection.innerHTML = `
+    <div class="section-title">📖 Guestbook (${gbs.length} entries)</div>
+    ${gbs.slice(0, 5).map(e => `
+      <div class="gb-entry">
+        <div class="gb-entry-header">
+          <span class="gb-entry-user">${e.by}</span>
+          <span>${e.ts?.toDate ? e.ts.toDate().toLocaleDateString() : ""}</span>
+        </div>
+        <div class="gb-entry-text">${e.msg}</div>
+      </div>`).join("") || "<i style='color:#888;'>No entries yet.</i>"}
+  `;
+  content.appendChild(gbSection);
+}
+
+function signOtherGuestbook() {
+  const form = document.querySelector("#win-viewuser #viewuser-guestbook-form");
+  if (form) form.classList.toggle("hidden");
+}
+
+function followUser() {
+  if (!viewingUser) return;
+  notify("⭐ You are now following " + viewingUser + "!");
+  fsAwardBadge(currentUser, "social");
+}
+
+async function submitOtherGuestbook() {
+  const msg = document.querySelector("#win-viewuser #viewuser-gb-msg")?.value.trim();
+  if (!msg || !viewingUser) return;
+
+  await fsAddGuestbookEntry(viewingUser, currentUser, msg);
+
+  document.querySelector("#win-viewuser #viewuser-gb-msg").value = "";
+  document.querySelector("#win-viewuser #viewuser-guestbook-form").classList.add("hidden");
+  notify("✍️ Guestbook signed!");
+  fsAwardBadge(currentUser, "social");
+  viewUserProfile(viewingUser);
+}
+
+/* ─────────────────────────────────────────────────────
+   CHAT APP
+   ───────────────────────────────────────────────────── */
+const DEFAULT_ROOMS = ["General", "Tech", "Gaming", "Music"];
+
+async function cleanupOldMessages(room) {
+  const msgsRef = collection(db, "chatRooms", room, "messages");
+  const snap = await getDocs(query(msgsRef, orderBy("ts", "desc")));
+  
+  if (snap.docs.length > 1000) {
+    const toDelete = snap.docs.slice(1000);
+    for (const doc of toDelete) {
+      await deleteDoc(doc.ref);
+    }
+  }
+}
+
+async function initChat() {
+  await renderRoomList();
+  joinRoom("General");
+}
+
+async function renderRoomList() {
+  const list = document.getElementById("chat-room-list");
+  if (!list) return;
+  const snap  = await getDocs(collection(db, "chatRooms"));
+  const rooms = new Set(DEFAULT_ROOMS);
+  snap.forEach(d => rooms.add(d.id));
+  list.innerHTML = [...rooms].map(r =>
+    `<button class="chat-room-btn ${r === currentRoom ? "active" : ""}" onclick="joinRoom('${r}')"># ${r}</button>`
+  ).join("");
+}
+
+function joinRoom(room) {
+  currentRoom = room;
+  const title = document.getElementById("chat-room-title");
+  if (title) title.textContent = "# " + room;
+
+  renderRoomList();
+  notify("💬 Joined #" + room);
+
+  if (chatUnsub)    { chatUnsub(); chatUnsub = null; }
+  if (chatPollTimer){ clearInterval(chatPollTimer); chatPollTimer = null; }
+
+  setDoc(doc(db, "chatRooms", room), { name: room }, { merge: true });
+
+  addDoc(collection(db, "chatRooms", room, "messages"), {
+    user: "SYSTEM",
+    msg: currentUser + " joined the room.",
+    ts: serverTimestamp(),
+    system: true
+  });
+
+  const msgsRef = query(
+    collection(db, "chatRooms", room, "messages"),
+    orderBy("ts"), limit(80)
+  );
+
+  chatUnsub = onSnapshot(msgsRef, async snap => {
+    const el = document.getElementById("chat-messages");
+    if (!el) return;
+    
+    // Get current user's profile for avatar display
+    const currentUserData = await fsGetUser(currentUser);
+    const currentUserAvatar = currentUserData?.profile?.avatar || "👤";
+    const currentUserColor = currentUserData?.accentColor || "#FF00FF";
+    
+    el.innerHTML = snap.docs.map(d => {
+      const m = d.data();
+      if (m.system) return `<div class="chat-msg chat-msg-system">*** ${m.msg}</div>`;
+      
+      // Get sender's profile for avatar
+      const senderAvatar = m.userAvatar || "👤";
+      const senderColor = m.userColor || "#FF00FF";
+      
+      const time = m.ts?.toDate
+        ? m.ts.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : "";
+      const isImage = /\.(gif|png|jpg|jpeg|webp)$/i.test(m.msg.trim())
+        || m.msg.trim().startsWith("https://media.tenor")
+        || m.msg.trim().startsWith("https://i.giphy")
+        || m.msg.trim().startsWith("https://media.giphy")
+        || m.msg.trim().startsWith("data:image");
+      const msgContent = isImage
+        ? `<img src="${m.msg.trim()}" alt="gif" style="max-width:200px; max-height:150px; display:block; margin-top:4px; border-radius:4px;" />`
+        : m.msg;
+      
+      // Display with profile picture (square, 32x32px)
+      return `
+        <div style="display:flex; gap:6px; margin-bottom:8px; align-items:flex-start;">
+          <div style="width:32px; height:32px; background:${senderColor}; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; border:1px solid #999;">
+            ${senderAvatar}
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:9px; color:#666; font-weight:bold;">${m.user}</div>
+            <div style="font-size:10px; word-wrap:break-word;">${msgContent} <span style="color:#aaa;font-size:8px;">${time}</span></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+    el.scrollTop = el.scrollHeight;
+  });
+
+  cleanupOldMessages(room);
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById("chat-input");
+  if (!input) return;
+  const msg = input.value.trim();
+  if (!msg || !currentRoom) return;
+  
+  // Get user data to include avatar and color
+  const user = await fsGetUser(currentUser);
+  const userAvatar = user?.profile?.avatar || "👤";
+  const userColor = user?.accentColor || "#FF00FF";
+  
+  input.value = "";
+  await addDoc(collection(db, "chatRooms", currentRoom, "messages"), {
+    user: currentUser,
+    msg,
+    userAvatar,
+    userColor,
+    ts: serverTimestamp()
+  });
+  await cleanupOldMessages(currentRoom);
+  fsAwardBadge(currentUser, "chatter");
+}
+
+async function createRoom() {
+  const name = document.getElementById("new-room-name").value.trim();
+  if (!name) return;
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) return notify("Room name: letters/numbers/dashes only.");
+  const existing = await getDoc(doc(db, "chatRooms", name));
+  if (existing.exists()) return notify("Room already exists!");
+  await setDoc(doc(db, "chatRooms", name), { name, createdBy: currentUser, ts: serverTimestamp() });
+  document.getElementById("new-room-name").value = "";
+  await renderRoomList();
+  joinRoom(name);
+  notify("🆕 Room #" + name + " created!");
+}
+
+/* ─────────────────────────────────────────────────────
+   GUESTBOOK APP
+   ───────────────────────────────────────────────────── */
+function initGuestbook() {
+  renderGuestbookEntries();
+}
+
+async function renderGuestbookEntries() {
+  const el = document.getElementById("guestbook-entries");
+  if (!el) return;
+  const gbs = await fsGetGuestbook(currentUser);
+  if (!gbs.length) { el.innerHTML = "<i style='color:#888;'>No entries yet. Share your page!</i>"; return; }
+  el.innerHTML = gbs.map(e => `
+    <div class="gb-entry">
+      <div class="gb-entry-header">
+        <span class="gb-entry-user" onclick="viewUserProfile('${e.by}')">${e.by}</span>
+        <span>${e.ts?.toDate ? e.ts.toDate().toLocaleDateString() : ""}</span>
+      </div>
+      <div class="gb-entry-text">${e.msg}</div>
+    </div>`).join("");
+}
+
+async function signGuestbook() {
+  const msg = document.getElementById("guestbook-msg").value.trim();
+  if (!msg) return;
+  await fsAddGuestbookEntry(currentUser, currentUser, msg);
+  document.getElementById("guestbook-msg").value = "";
+  await renderGuestbookEntries();
+  notify("✍️ Entry added!");
+}
+
+/* ─────────────────────────────────────────────────────
+   GAMES APP
+   ───────────────────────────────────────────────────── */
+function initGames() {
+  const area = document.getElementById("game-area");
+  if (area) area.innerHTML = `
+    <div class="game-msg" style="padding:20px;">
+      🕹️ Select a game above to play!<br/>
+      <span style="font-size:13px; color:#aaa;">Snake · Pong · Memory</span>
+    </div>`;
+}
+
+function loadGame(name) {
+  if (gameLoop) { cancelAnimationFrame(gameLoop); gameLoop = null; }
+  const area = document.getElementById("game-area");
+  if (!area) return;
+  if (name === "snake")  startSnake(area);
+  if (name === "pong")   startPong(area);
+  if (name === "memory") startMemory(area);
+}
+
+function startSnake(area) {
+  const W = 300, H = 300, SZ = 15;
+  area.innerHTML = `
+    <div class="game-score">🐍 Score: <span id="snake-score">0</span></div>
+    <canvas id="snake-canvas" width="${W}" height="${H}"></canvas>
+    <div class="game-msg" style="font-size:13px; margin-top:4px;">Arrow Keys to move</div>`;
+  const canvas = document.getElementById("snake-canvas");
+  const ctx    = canvas.getContext("2d");
+
+  let snake = [{ x: 10, y: 10 }];
+  let dir   = { x: 1, y: 0 };
+  let food  = randomFood();
+  let score = 0, speed = 150, lastTime = 0;
+
+  const keyMap = {
+    ArrowUp:   { x:0, y:-1 }, ArrowDown: { x:0,  y:1 },
+    ArrowLeft: { x:-1,y:0  }, ArrowRight:{ x:1,  y:0 },
+    w:         { x:0, y:-1 }, s:         { x:0,  y:1 },
+    a:         { x:-1,y:0  }, d:         { x:1,  y:0 },
+  };
+
+  function keydown(e) {
+    const nd = keyMap[e.key];
+    if (nd && !(nd.x === -dir.x && nd.y === -dir.y)) { dir = nd; e.preventDefault(); }
+  }
+  document.addEventListener("keydown", keydown);
+
+  function randomFood() {
+    return { x: Math.floor(Math.random()*(W/SZ)), y: Math.floor(Math.random()*(H/SZ)) };
+  }
+
+  function draw(ts) {
+    gameLoop = requestAnimationFrame(draw);
+    if (ts - lastTime < speed) return;
+    lastTime = ts;
+
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+    if (head.x < 0 || head.y < 0 || head.x >= W/SZ || head.y >= H/SZ) {
+      document.removeEventListener("keydown", keydown);
+      return gameOver("snake", score);
+    }
+    if (snake.some(s => s.x === head.x && s.y === head.y)) {
+      document.removeEventListener("keydown", keydown);
+      return gameOver("snake", score);
+    }
+
+    snake.unshift(head);
+    if (head.x === food.x && head.y === food.y) {
+      score++;
+      document.getElementById("snake-score").textContent = score;
+      food  = randomFood();
+      speed = Math.max(60, speed - 5);
+    } else { snake.pop(); }
+
+    ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#ff4444"; ctx.fillRect(food.x*SZ, food.y*SZ, SZ-1, SZ-1);
+    snake.forEach((s, i) => {
+      ctx.fillStyle = i === 0 ? "#00ff44" : "#00cc33";
+      ctx.fillRect(s.x*SZ, s.y*SZ, SZ-1, SZ-1);
+    });
+  }
+  gameLoop = requestAnimationFrame(draw);
+}
+
+function startPong(area) {
+  const W = 400, H = 280;
+  area.innerHTML = `
+    <div class="game-score">🏓 Player: <span id="pong-pscore">0</span> | CPU: <span id="pong-cscore">0</span></div>
+    <canvas id="pong-canvas" width="${W}" height="${H}"></canvas>
+    <div class="game-msg" style="font-size:12px; margin-top:4px;">W/S or ↑/↓ to move</div>`;
+  const canvas = document.getElementById("pong-canvas");
+  const ctx    = canvas.getContext("2d");
+
+  const PH = 50, PW = 8, BR = 7;
+  let py = H/2-PH/2, cy = H/2-PH/2;
+  let bx = W/2, by = H/2, vx = 4, vy = 3;
+  let pscore = 0, cscore = 0;
+  const keys = {};
+
+  const kd = e => { keys[e.key] = true; };
+  const ku = e => { keys[e.key] = false; };
+  document.addEventListener("keydown", kd);
+  document.addEventListener("keyup",   ku);
+
+  function draw() {
+    gameLoop = requestAnimationFrame(draw);
+    if ((keys["ArrowUp"]   || keys["w"]) && py > 0)       py -= 5;
+    if ((keys["ArrowDown"] || keys["s"]) && py < H-PH)    py += 5;
+    if (cy + PH/2 < by - 4) cy += 3.5; else if (cy + PH/2 > by + 4) cy -= 3.5;
+    cy = Math.max(0, Math.min(H-PH, cy));
+    bx += vx; by += vy;
+    if (by <= BR || by >= H-BR) vy *= -1;
+    if (bx-BR <= PW   && by >= py && by <= py+PH) vx =  Math.abs(vx);
+    if (bx+BR >= W-PW && by >= cy && by <= cy+PH) vx = -Math.abs(vx);
+    if (bx < 0) { cscore++; document.getElementById("pong-cscore").textContent = cscore; bx=W/2; by=H/2; vx=4;  vy=3; }
+    if (bx > W) { pscore++; document.getElementById("pong-pscore").textContent = pscore; bx=W/2; by=H/2; vx=-4; vy=-3; }
+    ctx.fillStyle="#0a0a0a"; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="#333"; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle="#00ff44";
+    ctx.fillRect(0,py,PW,PH); ctx.fillRect(W-PW,cy,PW,PH);
+    ctx.beginPath(); ctx.arc(bx,by,BR,0,Math.PI*2); ctx.fillStyle="#fff"; ctx.fill();
+  }
+  gameLoop = requestAnimationFrame(draw);
+}
+
+function startMemory(area) {
+  const emojis = ["🎮","🌟","🎵","🚀","💎","🔥","🌈","🎭"];
+  const cards  = [...emojis, ...emojis].sort(() => Math.random() - 0.5);
+  let flipped = [], matched = 0, locked = false;
+
+  area.innerHTML = `
+    <div class="game-score" style="margin-top:8px;">🧠 Memory — Matches: <span id="mem-score">0</span>/8</div>
+    <div class="memory-grid" id="memory-grid"></div>`;
+  const grid = document.getElementById("memory-grid");
+
+  cards.forEach((emoji, i) => {
+    const card = document.createElement("div");
+    card.className   = "memory-card hidden-face";
+    card.dataset.emoji = emoji;
+    card.onclick = () => {
+      if (locked || card.classList.contains("flipped") || card.classList.contains("matched")) return;
+      card.textContent = emoji;
+      card.classList.remove("hidden-face");
+      card.classList.add("flipped");
+      flipped.push(card);
+      if (flipped.length === 2) {
+        locked = true;
+        if (flipped[0].dataset.emoji === flipped[1].dataset.emoji) {
+          flipped.forEach(c => c.classList.add("matched"));
+          matched++;
+          document.getElementById("mem-score").textContent = matched;
+          flipped = []; locked = false;
+          if (matched === 8) { setTimeout(() => notify("🧠 Memory complete! Amazing!"), 200); fsAwardBadge(currentUser, "gamer"); }
+        } else {
+          setTimeout(() => {
+            flipped.forEach(c => { c.textContent=""; c.classList.remove("flipped"); c.classList.add("hidden-face"); });
+            flipped = []; locked = false;
+          }, 800);
+        }
+      }
+    };
+    grid.appendChild(card);
+  });
+}
+
+function gameOver(game, score) {
+  cancelAnimationFrame(gameLoop);
+  gameLoop = null;
+  const area = document.getElementById("game-area");
+  if (area) area.innerHTML = `
+    <div class="game-msg" style="padding:20px;">
+      GAME OVER<br/>Score: ${score}<br/>
+      <button class="xp-btn primary" onclick="loadGame('${game}')" style="margin-top:8px;">Try Again</button>
+    </div>`;
+  if (score > 5) fsAwardBadge(currentUser, "gamer");
+}
+
+/* ─────────────────────────────────────────────────────
+   BADGES
+   ───────────────────────────────────────────────────── */
+const ALL_BADGES = [
+  { id: "newbie",     icon: "🌱", name: "Newbie",      desc: "Joined NetZone 98" },
+  { id: "customizer", icon: "✏️",  name: "Customizer",  desc: "Edited your profile" },
+  { id: "designer",   icon: "🎨", name: "Designer",    desc: "Applied a custom theme" },
+  { id: "poster",     icon: "📝", name: "Poster",      desc: "Made your first post" },
+  { id: "chatter",    icon: "💬", name: "Chatter",     desc: "Sent a chat message" },
+  { id: "social",     icon: "⭐", name: "Social",      desc: "Signed a guestbook" },
+  { id: "gamer",      icon: "🎮", name: "Gamer",       desc: "Played a mini game" },
+  { id: "explorer",   icon: "🔭", name: "Explorer",    desc: "Visited another profile" },
+  { id: "developer",  icon: "💻", name: "Developer",   desc: "Published an app" },
+];
+
+async function initBadges() {
+  const grid   = document.getElementById("badges-grid");
+  if (!grid) return;
+  const earned = await fsGetBadges(currentUser);
+  grid.innerHTML = ALL_BADGES.map(b => `
+    <div class="badge-card ${earned.includes(b.id) ? "" : "locked"}">
+      <div class="badge-icon">${b.icon}</div>
+      <div class="badge-name">${b.name}</div>
+      <div class="badge-desc">${b.desc}</div>
+      ${earned.includes(b.id)
+        ? "<div style='color:#008800;font-size:9px;'>✅ Earned</div>"
+        : "<div style='color:#aaa;font-size:9px;'>🔒 Locked</div>"}
+    </div>`).join("");
+}
+
+async function getBadgesHTML(username) {
+  const earned = await fsGetBadges(username);
+  return ALL_BADGES.filter(b => earned.includes(b.id))
+    .map(b => `<span title="${b.name}" style="font-size:20px;">${b.icon}</span>`)
+    .join(" ");
+}
+
+/* ─────────────────────────────────────────────────────
+   SETTINGS APP
+   ───────────────────────────────────────────────────── */
+async function initSettings() {
+  const saved = await fsGetSettings(currentUser);
+  setValue("set-bg", saved.bg || "default");
+}
+
+async function applyDesktopBg() {
+  const val = document.getElementById("set-bg").value;
+  applyDesktopBgValue(val);
+  await fsSaveSettings(currentUser, { bg: val });
+}
+
+function applyDesktopBgValue(val) {
+  document.body.className = document.body.className.replace(/\bbg-\S+/g, "").trim();
+  const map = { space: "bg-space", matrix: "bg-matrix", sunset: "bg-sunset", black: "bg-black" };
+  if (map[val]) document.body.classList.add(map[val]);
+}
+
+async function changePassword() {
+  const oldpass = document.getElementById("set-oldpass").value;
+  const newpass = document.getElementById("set-newpass").value;
+  if (!oldpass || !newpass) return showSettingsMsg("Fill in both fields.", "red");
+  if (newpass.length < 4)   return showSettingsMsg("Password too short.", "red");
+
+  const user = await fsGetUser(currentUser);
+  if (user.isGuest) return showSettingsMsg("Guests can't change passwords.", "red");
+
+  try {
+    await signInWithEmailAndPassword(auth, user.email, oldpass);
+    const { updatePassword } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+    await updatePassword(auth.currentUser, newpass);
+    showSettingsMsg("✅ Password changed!", "green");
+  } catch (e) {
+    showSettingsMsg("Old password incorrect.", "red");
+  }
+}
+
+async function deleteAccount() {
+  if (!confirm("Delete your account permanently? This cannot be undone.")) return;
+  await deleteDoc(doc(db, "users", currentUser));
+  if (auth.currentUser) await auth.currentUser.delete();
+  handleLogout();
+}
+
+function showSettingsMsg(msg, color) {
+  const el = document.getElementById("settings-msg");
+  if (!el) return;
+  el.textContent  = msg;
+  el.style.color  = color;
+  el.classList.remove("hidden");
+  setTimeout(() => el.classList.add("hidden"), 3000);
+}
+
+/* ─────────────────────────────────────────────────────
+   VHS / GLITCH EFFECTS
+   ───────────────────────────────────────────────────── */
+function enableVHS(on) {
+  const el = document.getElementById("vhs-overlay");
+  el.classList.toggle("hidden", !on);
+  if (on) {
+    setInterval(() => {
+      document.getElementById("vhs-timestamp").textContent =
+        "REC ● " + new Date().toLocaleTimeString();
+    }, 1000);
+  }
+}
+
+function enableGlitch(on) {
+  document.getElementById("glitch-overlay").classList.toggle("hidden", !on);
+}
+
+/* ─────────────────────────────────────────────────────
+   NOTIFICATION TOAST
+   ───────────────────────────────────────────────────── */
+let notifyTimer = null;
+function notify(msg) {
+  const el = document.getElementById("notification");
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  if (notifyTimer) clearTimeout(notifyTimer);
+  notifyTimer = setTimeout(() => el.classList.add("hidden"), 3000);
+}
+
+/* ─────────────────────────────────────────────────────
+   UTILITY HELPERS
+   ───────────────────────────────────────────────────── */
+function setValue(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val;
+}
+
+function setChecked(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.checked = val;
+}
+
+/* ─────────────────────────────────────────────────────
+   APP BUILDER (INLINE - WORKING VERSION)
    ───────────────────────────────────────────────────── */
 async function initAppBuilder() {
   const area = document.getElementById("appbuilder-content");
@@ -994,8 +1581,6 @@ async function initAppBuilder() {
         <option value="colorpicker">🎨 Color Picker</option>
         <option value="dice">🎲 Dice Roller</option>
         <option value="todo">✅ Todo List</option>
-        <option value="calculator">🧮 Calculator</option>
-        <option value="weather">🌤️ Weather</option>
       </select>
     </div>
     <button class="xp-btn primary" onclick="saveUserApp()">📦 Publish App</button>
@@ -1020,9 +1605,7 @@ async function saveUserApp() {
     notepad: `<textarea id="notepad" style="width:100%; height:300px; padding:8px; font-family:monospace;" placeholder="Start typing..."></textarea><button onclick="const text = document.getElementById('notepad').value; const blob = new Blob([text], {type:'text/plain'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'note.txt'; a.click();" class="xp-btn primary" style="margin-top:8px;">💾 Download Note</button>`,
     colorpicker: `<div style="text-align:center; padding:20px;"><input type="color" id="color-input" value="#ff0000" style="width:100px; height:100px; cursor:pointer;" /><div style="margin-top:16px; padding:20px; background:#ff0000; border:2px solid #000;" id="color-preview"></div><div style="font-family:monospace; margin-top:8px;" id="color-hex">#FF0000</div><button onclick="navigator.clipboard.writeText(document.getElementById('color-hex').textContent); alert('Copied!')" class="xp-btn primary">📋 Copy Hex</button></div><script>document.getElementById('color-input').addEventListener('input', (e) => { document.getElementById('color-preview').style.background = e.target.value; document.getElementById('color-hex').textContent = e.target.value.toUpperCase(); });</script>`,
     dice: `<div style="text-align:center; padding:20px;"><button onclick="const sides = parseInt(document.getElementById('dice-type').value); document.getElementById('dice-result').textContent = Math.floor(Math.random() * sides) + 1;" class="xp-btn primary" style="font-size:20px; padding:20px;">🎲 ROLL</button><div style="font-size:72px; margin:40px 0;" id="dice-result">?</div><select id="dice-type" class="xp-input"><option value="6">6-sided</option><option value="20">20-sided</option><option value="100">100-sided</option></select></div>`,
-    todo: `<div style="padding:12px;"><input class="xp-input" id="todo-input" placeholder="Add a task..." style="margin-bottom:8px;" /><button onclick="const inp = document.getElementById('todo-input'); if(inp.value) { if(!window.todos) window.todos=[]; window.todos.push(inp.value); inp.value=''; renderTodos(); }" class="xp-btn primary">Add</button><ul id="todo-list" style="list-style:none; padding:0; margin-top:12px;"></ul></div><script>function renderTodos() { const list = document.getElementById('todo-list'); list.innerHTML = (window.todos||[]).map((t,i) => '<li style="padding:6px; background:#fff; border:1px solid #ccc; margin-bottom:4px;">'+t+' <button onclick="window.todos.splice('+i+',1); renderTodos()" style="float:right;">✕</button></li>').join(''); }</script>`,
-    calculator: `<div style="text-align:center; padding:20px;"><input type="text" id="calc-display" style="width:100%; padding:8px; font-size:20px; text-align:right; margin-bottom:8px;" readonly /><div style="display:grid; grid-template-columns:repeat(4,1fr); gap:4px;"><button onclick="appendCalc('7')" class="xp-btn">7</button><button onclick="appendCalc('8')" class="xp-btn">8</button><button onclick="appendCalc('9')" class="xp-btn">9</button><button onclick="appendCalc('/')" class="xp-btn">÷</button><button onclick="appendCalc('4')" class="xp-btn">4</button><button onclick="appendCalc('5')" class="xp-btn">5</button><button onclick="appendCalc('6')" class="xp-btn">6</button><button onclick="appendCalc('*')" class="xp-btn">×</button><button onclick="appendCalc('1')" class="xp-btn">1</button><button onclick="appendCalc('2')" class="xp-btn">2</button><button onclick="appendCalc('3')" class="xp-btn">3</button><button onclick="appendCalc('-')" class="xp-btn">-</button><button onclick="appendCalc('0')" class="xp-btn">0</button><button onclick="appendCalc('.')" class="xp-btn">.</button><button onclick="calculateCalc()" class="xp-btn primary">=</button><button onclick="clearCalc()" class="xp-btn">C</button></div></div><script>function appendCalc(v) { document.getElementById('calc-display').value += v; } function calculateCalc() { try { document.getElementById('calc-display').value = eval(document.getElementById('calc-display').value); } catch(e) {} } function clearCalc() { document.getElementById('calc-display').value = ''; }</script>`,
-    weather: `<div style="text-align:center; padding:20px;"><input class="xp-input" id="weather-city" placeholder="Enter city..." style="margin-bottom:8px;" /><button onclick="getWeather()" class="xp-btn primary">🌤️ Get Weather</button><div id="weather-result" style="margin-top:12px; font-size:12px;"></div></div><script>async function getWeather() { const city = document.getElementById('weather-city').value; try { const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=51.5074&longitude=-0.1278&current=temperature_2m,weather_code'); const data = await res.json(); document.getElementById('weather-result').innerHTML = '<div>Temperature: ' + data.current.temperature_2m + '°C</div>'; } catch(e) { document.getElementById('weather-result').innerHTML = '<div style="color:red;">Error fetching weather</div>'; } }</script>`
+    todo: `<div style="padding:12px;"><input class="xp-input" id="todo-input" placeholder="Add a task..." style="margin-bottom:8px;" /><button onclick="const inp = document.getElementById('todo-input'); if(inp.value) { if(!window.todos) window.todos=[]; window.todos.push(inp.value); inp.value=''; renderTodos(); }" class="xp-btn primary">Add</button><ul id="todo-list" style="list-style:none; padding:0; margin-top:12px;"></ul></div><script>function renderTodos() { const list = document.getElementById('todo-list'); list.innerHTML = (window.todos||[]).map((t,i) => '<li style="padding:6px; background:#fff; border:1px solid #ccc; margin-bottom:4px;">'+t+' <button onclick="window.todos.splice('+i+',1); renderTodos()" style="float:right;">✕</button></li>').join(''); }</script>`
   };
 
   const appData = {
@@ -1050,8 +1633,6 @@ async function loadMyPublishedApps() {
   const appIds = user?.publishedApps || [];
   const list = document.getElementById("my-apps-list");
   
-  if (!list) return;
-  
   if (!appIds.length) {
     list.innerHTML = "<i style='color:#888;'>No apps published yet.</i>";
     return;
@@ -1062,7 +1643,7 @@ async function loadMyPublishedApps() {
       const appDoc = await getDoc(doc(db, "publishedApps", id));
       if (appDoc.exists()) {
         const app = appDoc.data();
-        return `<div class="app-card"><strong>${app.name}</strong> (${app.type}) | 📥 ${app.downloads || 0}<button onclick="deletePublishedApp('${id}')" class="xp-btn danger" style="float:right; font-size:8px;">🗑️</button></div>`;
+        return `<div class="app-card"><strong>${app.name}</strong> (${app.type}) | 📥 ${app.downloads || 0}<button onclick="deletePublishedApp('${id}')" class="xp-btn danger" style="float:right;">🗑️</button></div>`;
       }
     })
   );
@@ -1081,17 +1662,17 @@ async function deletePublishedApp(appId) {
 }
 
 /* ─────────────────────────────────────────────────────
-   APP BROWSER (INLINE - EXPANDED)
+   APP BROWSER (INLINE - WORKING VERSION)
    ───────────────────────────────────────────────────── */
 async function initAppBrowser() {
   const area = document.getElementById("appbrowser-content");
   if (!area) return;
   
   area.innerHTML = `
-    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
       <button class="xp-btn primary" onclick="loadAllApps()">🔍 Browse All Apps</button>
       <button class="xp-btn" onclick="loadInstalledApps()">📥 My Installed</button>
-      <input class="xp-input" id="search-apps" placeholder="Search..." style="flex:1; min-width:150px;" onkeyup="searchApps()" />
+      <input class="xp-input" id="search-apps" placeholder="Search..." style="flex:1;" onkeyup="searchApps()" />
     </div>
     <div id="appbrowser-list"></div>
   `;
@@ -1121,7 +1702,7 @@ async function loadAllApps() {
           <div class="app-title">${app.name}</div>
           <div class="app-meta">By ${app.author} • ${app.type} • 📥 ${app.downloads || 0}</div>
         </div>
-        <button class="xp-btn primary" onclick="installApp('${app.id}')" style="font-size:9px;">📥</button>
+        <button class="xp-btn primary" onclick="installApp('${app.id}')">📥 Install</button>
       </div>
     </div>
   `).join("");
@@ -1141,7 +1722,7 @@ async function loadInstalledApps() {
   
   list.innerHTML = apps.map(snap => {
     const app = snap.data();
-    return `<div class="app-browser-card"><strong>${app.name}</strong> by ${app.author} <button class="xp-btn" onclick="launchInstalledApp('${snap.id}')" style="float:right; margin-left:4px; font-size:9px;">▶️</button><button class="xp-btn danger" onclick="uninstallApp('${snap.id}')" style="float:right; font-size:9px;">🗑️</button></div>`;
+    return `<div class="app-browser-card"><strong>${app.name}</strong> by ${app.author} <button class="xp-btn" onclick="launchInstalledApp('${snap.id}')" style="float:right; margin-left:4px;">▶️</button><button class="xp-btn danger" onclick="uninstallApp('${snap.id}')" style="float:right;">🗑️</button></div>`;
   }).join("");
 }
 
@@ -1198,174 +1779,45 @@ function searchApps() {
 }
 
 /* ─────────────────────────────────────────────────────
-   CHAT ROOMS
+   EXPOSE FUNCTIONS TO GLOBAL SCOPE
    ───────────────────────────────────────────────────── */
-async function loadChatRooms() {
-  const snap = await getDocs(collection(db, "rooms"));
-  const rooms = snap.docs.map(d => d.id);
-  
-  const list = document.getElementById("chat-room-list");
-  if (!list) return;
-  
-  list.innerHTML = rooms.map(room => `
-    <button class="xp-btn" onclick="joinRoom('${room}')" style="width:100%; text-align:left; margin-bottom:2px;">💬 ${room}</button>
-  `).join('');
-}
-
-async function createRoom() {
-  const name = document.getElementById("new-room-name").value.trim();
-  if (!name) return notify("⚠️ Name the room!");
-  
-  await setDoc(doc(db, "rooms", name), { createdAt: serverTimestamp() });
-  document.getElementById("new-room-name").value = "";
-  notify("🎉 Room created!");
-  await loadChatRooms();
-}
-
-/* ─────────────────────────────────────────────────────
-   AUTH HANDLERS
-   ───────────────────────────────────────────────────── */
-async function handleLogin() {
-  const user = document.getElementById("login-user").value;
-  const pass = document.getElementById("login-pass").value;
-  
-  if (!user || !pass) return notify("⚠️ Enter credentials!");
-  
-  try {
-    const email = user + "@netzone98.local";
-    await signInWithEmailAndPassword(auth, email, pass);
-    currentUser = user;
-    await fsRecordVisit(user);
-    document.getElementById("auth-screen").classList.add("hidden");
-    document.getElementById("start-username").textContent = user;
-    await initBootScreen();
-    updateClock();
-    setInterval(updateClock, 1000);
-    
-    const user_doc = await fsGetUser(currentUser);
-    if (user_doc?.desktopBackground) {
-      setDesktopBackground(user_doc.desktopBackground);
-    }
-    
-    fsAwardBadge(currentUser, "newbie");
-  } catch (err) {
-    document.getElementById("login-error").classList.remove("hidden");
-    document.getElementById("login-error").textContent = err.message;
-  }
-}
-
-async function handleRegister() {
-  const user = document.getElementById("reg-user").value;
-  const pass = document.getElementById("reg-pass").value;
-  const email = document.getElementById("reg-email").value;
-  const vibe = document.getElementById("reg-vibe").value;
-  
-  if (!user || !pass || !email) return notify("⚠️ Fill all fields!");
-  if (pass.length < 4) return notify("⚠️ Password too short!");
-  
-  try {
-    const userEmail = user + "@netzone98.local";
-    await createUserWithEmailAndPassword(auth, userEmail, pass);
-    
-    const VIBE_ICONS = {
-      hacker: "💻", artist: "🎨", gamer: "🎮",
-      musician: "🎸", poet: "✍️", random: "🌀"
-    };
-    
-    await fsSetUser(user, {
-      avatar: VIBE_ICONS[vibe] || "👤",
-      displayName: user,
-      bio: "",
-      location: "Cyberspace",
-      mood: "🎉",
-      song: "",
-      website: "",
-      interests: "",
-      joinDate: new Date().toISOString(),
-      desktopBackground: "classic",
-      profileLayout: "classic"
-    });
-    
-    currentUser = user;
-    document.getElementById("auth-screen").classList.add("hidden");
-    document.getElementById("start-username").textContent = user;
-    await initBootScreen();
-    updateClock();
-    setInterval(updateClock, 1000);
-    fsAwardBadge(currentUser, "newbie");
-  } catch (err) {
-    document.getElementById("register-error").classList.remove("hidden");
-    document.getElementById("register-error").textContent = err.message;
-  }
-}
-
-function handleGuestLogin() {
-  const guestName = "Guest_" + Math.random().toString(36).substr(2, 6).toUpperCase();
-  currentUser = guestName;
-  document.getElementById("auth-screen").classList.add("hidden");
-  document.getElementById("start-username").textContent = guestName;
-  initBootScreen();
-  updateClock();
-  setInterval(updateClock, 1000);
-}
-
-/* ─────────────────────────────────────────────────────
-   START MENU & MISC
-   ───────────────────────────────────────────────────── */
-function toggleStartMenu() {
-  const menu = document.getElementById("start-menu");
-  if (menu) menu.classList.toggle("hidden");
-}
-
-/* EXPORT FOR GLOBAL ACCESS */
-window.startIconDrag = startIconDrag;
-window.openApp = openApp;
-window.closeWindow = closeWindow;
-window.minimizeWindow = minimizeWindow;
-window.toggleWindow = toggleWindow;
-window.toggleStartMenu = toggleStartMenu;
-window.handleLogin = handleLogin;
-window.handleRegister = handleRegister;
-window.handleGuestLogin = handleGuestLogin;
-window.handleLogout = handleLogout;
-window.saveProfile = saveProfile;
-window.saveCustomization = saveCustomization;
-window.exportProfile = exportProfile;
-window.submitPost = submitPost;
-window.loadProfilePosts = loadProfilePosts;
-window.deletePost = deletePost;
-window.loadRandomProfile = loadRandomProfile;
-window.loadAllUsers = loadAllUsers;
-window.openUserProfile = openUserProfile;
-window.signGuestbook = signGuestbook;
-window.loadGuestbook = loadGuestbook;
-window.submitGuestbookEntry = submitGuestbookEntry;
-window.loadBadges = loadBadges;
-window.openSettings = openSettings;
-window.switchSettingsTab = switchSettingsTab;
-window.savePrivacySettings = savePrivacySettings;
-window.setDesktopBackground = setDesktopBackground;
-window.setCustomBackground = setCustomBackground;
-window.applyProfileTheme = applyProfileTheme;
-window.initAppBuilder = initAppBuilder;
-window.saveUserApp = saveUserApp;
-window.loadMyPublishedApps = loadMyPublishedApps;
-window.deletePublishedApp = deletePublishedApp;
-window.initAppBrowser = initAppBrowser;
-window.loadAllApps = loadAllApps;
-window.loadInstalledApps = loadInstalledApps;
-window.installApp = installApp;
-window.uninstallApp = uninstallApp;
-window.launchInstalledApp = launchInstalledApp;
-window.searchApps = searchApps;
-window.joinRoom = joinRoom;
-window.loadChatRooms = loadChatRooms;
-window.createRoom = createRoom;
-window.sendChatMessage = sendChatMessage;
-window.sendChatImageMessage = sendChatImageMessage;
-window.handleAvatarUpload = handleAvatarUpload;
+window.handleLogin          = handleLogin;
+window.handleRegister       = handleRegister;
+window.handleGuestLogin     = handleGuestLogin;
+window.handleLogout         = handleLogout;
+window.switchAuthTab        = switchAuthTab;
+window.toggleStartMenu      = toggleStartMenu;
+window.openApp              = openApp;
+window.closeWindow          = closeWindow;
+window.minimizeWindow       = minimizeWindow;
+window.bringToFront         = bringToFront;
+window.switchProfileTab     = switchProfileTab;
+window.saveProfile          = saveProfile;
+window.saveCustomization    = saveCustomization;
+window.exportProfile        = exportProfile;
+window.submitPost           = submitPost;
+window.deletePost           = deletePost;
+window.loadAllUsers         = loadAllUsers;
+window.loadTopProfiles      = loadTopProfiles;
+window.loadRandomProfile    = loadRandomProfile;
+window.viewUserProfile      = viewUserProfile;
+window.signOtherGuestbook   = signOtherGuestbook;
+window.submitOtherGuestbook = submitOtherGuestbook;
+window.followUser           = followUser;
+window.signGuestbook        = signGuestbook;
+window.joinRoom             = joinRoom;
+window.sendChatMessage      = sendChatMessage;
+window.createRoom           = createRoom;
+window.loadGame             = loadGame;
+window.applyDesktopBg       = applyDesktopBg;
+window.changePassword       = changePassword;
+window.deleteAccount        = deleteAccount;
+window.handleTerminalCmd    = handleTerminalCmd;
+window.handleAvatarUpload   = handleAvatarUpload;
 window.handlePostImageUpload = handlePostImageUpload;
 window.handleChatImageUpload = handleChatImageUpload;
-window.notify = notify;
-window.switchAuthTab = switchAuthTab;
-window.loadProfileView = loadProfileView;
+window.cleanupOldMessages   = cleanupOldMessages;
+window.initAppBuilder       = initAppBuilder;
+window.initAppBrowser       = initAppBrowser;
+window.setDesktopBackground = setDesktopBackground;
+window.setCustomBackground  = setCustomBackground;
