@@ -623,6 +623,20 @@
   <script type="module" src="app.js"></script>
   <script type="module" src="app-builder.js"></script>
   <script type="module" src="app-browser.js"></script>
-
+<!-- SETTINGS WINDOW -->
+<template id="tpl-settings">
+  <div class="app-window window" id="win-settings" data-appid="settings">
+    <div class="window-titlebar green-bar">
+      <span class="window-title">⚙️ Settings</span>
+      <div style="margin-left:auto; display:flex; gap:2px;">
+        <button class="win-btn" onclick="minimizeWindow('settings')">_</button>
+        <button class="win-btn close" onclick="closeWindow('settings')">✕</button>
+      </div>
+    </div>
+    <div class="window-body" style="overflow-y:auto;">
+      <div id="settings-content"></div>
+    </div>
+  </div>
+</template>
 </body>
 </html>
