@@ -1291,3 +1291,693 @@ body.bg-black {
   margin-bottom: 6px;
   border-radius: 2px;
 }
+/* =====================================================
+   NETZONE 98 — ENHANCED CSS ADDITIONS
+   Append to your existing style.css
+   ===================================================== */
+
+/* ── Background Customization UI ── */
+.settings-bg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bg-preset {
+  border: 2px solid #999;
+  border-radius: 4px;
+  padding: 8px;
+  cursor: pointer;
+  text-align: center;
+  font-size: 10px;
+  transition: all 0.2s;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bg-preset:hover {
+  border-color: #0080FF;
+  transform: scale(1.05);
+}
+
+.bg-preset.active {
+  border-color: #FFD700;
+  box-shadow: 0 0 8px #FFD700;
+}
+
+/* ── Chat Profile Pictures (Square, Small) ── */
+.chat-message {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+
+.chat-avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  border: 1px solid #999;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  flex-shrink: 0;
+}
+
+.chat-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-username {
+  font-size: 9px;
+  color: #666;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.chat-text {
+  font-size: 10px;
+  word-wrap: break-word;
+  background: #f0f0f0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
+  border-left: 2px solid #0080FF;
+}
+
+.chat-image {
+  max-width: 150px;
+  border-radius: 4px;
+  margin-top: 4px;
+  border: 1px solid #ccc;
+}
+
+/* ── Advanced Profile Customization ── */
+.profile-customization-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.customization-option {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.customization-option:hover {
+  border-color: #0080FF;
+  background: #e8f4ff;
+  transform: translateY(-2px);
+}
+
+.customization-option.selected {
+  border-color: #FFD700;
+  background: #fffacd;
+  box-shadow: 0 2px 6px rgba(0, 128, 255, 0.4);
+}
+
+/* ── Profile Theme Previews ── */
+.theme-preview {
+  border: 2px solid #999;
+  padding: 8px;
+  margin: 4px 0;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.theme-preview:hover {
+  border-color: #0080FF;
+  background: #e8f4ff;
+}
+
+.theme-color-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 2px;
+  border: 1px solid #333;
+}
+
+/* ── Desktop Background ── */
+#desktop {
+  background: linear-gradient(45deg, #000080, #0000FF);
+  transition: background 0.5s ease;
+}
+
+#desktop.bg-purple {
+  background: linear-gradient(135deg, #4B0082, #9370DB);
+}
+
+#desktop.bg-ocean {
+  background: linear-gradient(180deg, #001a4d, #0066cc);
+}
+
+#desktop.bg-cyber {
+  background: linear-gradient(45deg, #ff00ff, #00ffff);
+}
+
+#desktop.bg-matrix {
+  background: linear-gradient(90deg, #000000, #00FF00);
+}
+
+#desktop.bg-fire {
+  background: linear-gradient(135deg, #FF0000, #FFA500);
+}
+
+#desktop.bg-sunset {
+  background: linear-gradient(to bottom, #FF6B6B, #FFE66D);
+}
+
+#desktop.bg-galaxy {
+  background: radial-gradient(circle, #1a0033, #330066, #000000);
+}
+
+#desktop.bg-neon {
+  background: linear-gradient(45deg, #FF1493, #FF69B4);
+}
+
+#desktop.bg-retro {
+  background: linear-gradient(90deg, #00AA00, #00FF00);
+}
+
+#desktop.bg-stars {
+  background: radial-gradient(circle, #ffffff, #000000);
+}
+
+#desktop.bg-forest {
+  background: linear-gradient(135deg, #1a3a1a, #2d5a2d);
+}
+
+/* ── Settings Tabs ── */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid #dfdfdf;
+}
+
+.settings-tab {
+  padding: 6px 12px;
+  background: #dfdfdf;
+  border: 1px solid #999;
+  border-bottom: none;
+  cursor: pointer;
+  font-size: 10px;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.2s;
+}
+
+.settings-tab:hover {
+  background: #efefef;
+}
+
+.settings-tab.active {
+  background: #ffffff;
+  border-color: #0080FF;
+  font-weight: bold;
+}
+
+.settings-content {
+  padding: 8px;
+  border: 1px solid #999;
+}
+
+/* ── Profile Enhanced Sections ── */
+.profile-section {
+  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.profile-section-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #0080FF;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.profile-stat {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  padding: 2px 0;
+  border-bottom: 1px dotted #ddd;
+}
+
+.profile-stat:last-child {
+  border-bottom: none;
+}
+
+/* ── Enhanced Badges Display ── */
+.badges-showcase {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.badge-item {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+  border-radius: 4px;
+  background: #f0f0f0;
+  cursor: help;
+  transition: all 0.2s;
+}
+
+.badge-item:hover {
+  transform: scale(1.1);
+  border-color: #FFD700;
+  background: #fffacd;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
+}
+
+.badge-icon {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.badge-name {
+  font-size: 8px;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.badge-status {
+  font-size: 7px;
+  color: #666;
+}
+
+.badge-earned {
+  border-color: #FFD700 !important;
+  background: #fffacd !important;
+}
+
+.badge-locked {
+  opacity: 0.6;
+  filter: grayscale(50%);
+}
+
+/* ── Enhanced Chat UI ── */
+#chat-messages {
+  background: white;
+  border: 1px inset #dfdfdf;
+  padding: 8px;
+  border-radius: 2px;
+  overflow-y: auto;
+}
+
+.chat-message-wrapper {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.chat-message-wrapper:hover {
+  background: #f5f5f5;
+}
+
+.chat-user-avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  border: 1px solid #999;
+  flex-shrink: 0;
+  font-weight: bold;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.chat-message-inner {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-username-label {
+  font-size: 9px;
+  color: #666;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.chat-message-body {
+  font-size: 10px;
+  word-wrap: break-word;
+  background: #f0f0f0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border-left: 3px solid #0080FF;
+}
+
+.chat-image-preview {
+  max-width: 180px;
+  border-radius: 4px;
+  margin-top: 4px;
+  border: 1px solid #ccc;
+}
+
+/* ── Room List Enhanced ── */
+.chat-room-item {
+  padding: 6px 8px;
+  background: #dfdfdf;
+  border: 1px solid #999;
+  margin-bottom: 2px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+  font-size: 10px;
+}
+
+.chat-room-item:hover {
+  background: #efefef;
+  border-color: #0080FF;
+}
+
+.chat-room-item.active {
+  background: #0080FF;
+  color: white;
+  border-color: #0080FF;
+  font-weight: bold;
+}
+
+/* ── App Cards Enhanced ── */
+.app-browser-card {
+  border: 1px solid #bbb;
+  padding: 8px;
+  margin-bottom: 6px;
+  background: linear-gradient(to right, #ffffff 0%, #f9f9f9 100%);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.app-browser-card:hover {
+  border-color: #0080FF;
+  box-shadow: 0 2px 8px rgba(0, 128, 255, 0.3);
+  transform: translateX(2px);
+}
+
+.app-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #0080FF;
+  margin-bottom: 2px;
+}
+
+.app-meta {
+  font-size: 9px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.app-card {
+  border: 1px solid #ccc;
+  padding: 8px;
+  margin-bottom: 4px;
+  background: #f9f9f9;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ── User Cards Enhanced ── */
+.user-card {
+  border: 1px solid #ccc;
+  padding: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  background: #f9f9f9;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-card:hover {
+  border-color: #0080FF;
+  background: #e8f4ff;
+  transform: translateX(2px);
+}
+
+.user-card-avatar {
+  font-size: 32px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.user-card-info {
+  flex: 1;
+}
+
+.user-card-name {
+  font-size: 11px;
+  font-weight: bold;
+  color: #333;
+}
+
+.user-card-username {
+  font-size: 9px;
+  color: #666;
+}
+
+/* ── Guestbook Enhanced ── */
+.gb-entry {
+  border-left: 3px solid #0080FF;
+  padding: 8px;
+  margin-bottom: 6px;
+  background: #f9f9f9;
+  border-radius: 2px;
+  border-radius: 0 4px 4px 0;
+}
+
+.gb-entry-header {
+  font-size: 9px;
+  color: #0080FF;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.gb-entry-text {
+  font-size: 10px;
+  color: #333;
+  line-height: 1.4;
+}
+
+/* ── Posts Enhanced ── */
+.post-card {
+  border: 1px solid #ccc;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  background: #f9f9f9;
+}
+
+.post-header {
+  font-size: 9px;
+  color: #666;
+  margin-bottom: 4px;
+  border-bottom: 1px dotted #ddd;
+  padding-bottom: 4px;
+}
+
+.post-content {
+  font-size: 10px;
+  color: #333;
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.post-image {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 4px 0;
+  border: 1px solid #ccc;
+}
+
+/* ── Profile Enhanced ── */
+.profile-header-enhanced {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 8px;
+  background: linear-gradient(135deg, #f0f0f0 0%, #ffffff 100%);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.profile-avatar-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  border: 2px solid #999;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.profile-name-large {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.profile-username-label {
+  font-size: 10px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.profile-stats-row {
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+}
+
+.profile-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.profile-stat-number {
+  font-size: 12px;
+  font-weight: bold;
+  color: #0080FF;
+}
+
+.profile-stat-label {
+  font-size: 9px;
+  color: #666;
+}
+
+/* ── Mobile Responsive Enhancements ── */
+@media (max-width: 768px) {
+  .chat-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+
+  .badge-item {
+    padding: 6px;
+  }
+
+  .badge-icon {
+    font-size: 24px;
+  }
+
+  .settings-bg-grid {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  }
+
+  .profile-customization-grid {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  }
+
+  .badges-showcase {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .chat-message-wrapper {
+    padding: 2px;
+  }
+
+  .user-card {
+    gap: 6px;
+  }
+
+  .user-card-avatar {
+    font-size: 24px;
+    min-width: 30px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+
+  .badges-showcase {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+  }
+
+  .badge-icon {
+    font-size: 20px;
+  }
+
+  .settings-bg-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .profile-header-enhanced {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .profile-avatar-large {
+    width: 60px;
+    height: 60px;
+    font-size: 36px;
+  }
+
+  .chat-room-item {
+    padding: 4px 6px;
+    font-size: 9px;
+  }
+
+  .app-browser-card {
+    padding: 6px;
+  }
+
+  .app-title {
+    font-size: 10px;
+  }
+
+  .app-meta {
+    font-size: 8px;
+  }
+}
+
+/* End of Enhanced CSS */
