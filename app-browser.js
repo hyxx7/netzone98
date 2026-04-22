@@ -3,7 +3,12 @@
    Browse, Download, and Manage Apps
    ===================================================== */
 
-let installedApps = {};
+import { getFirestore, doc, getDoc, setDoc, updateDoc,
+         deleteDoc, addDoc, getDocs, onSnapshot,
+         collection, query, orderBy, limit,
+         serverTimestamp, arrayUnion, increment, arrayRemove }   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const db = getFirestore();
 
 async function initAppBrowser() {
   const area = document.getElementById("appbrowser-content");
@@ -34,7 +39,6 @@ async function loadAllApps() {
     return;
   }
   
-  // Sort by downloads
   apps.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
   
   list.innerHTML = apps.map(app => `
@@ -97,7 +101,6 @@ async function installApp(appId) {
     installedApps: arrayUnion(appId)
   });
   
-  // Increment download count
   await updateDoc(doc(db, "publishedApps", appId), {
     downloads: increment(1)
   });
@@ -123,10 +126,8 @@ async function launchInstalledApp(appId) {
   
   const app = appDoc.data();
   
-  // Close existing app viewer if open
   if (openWindows["appviewer"]) closeWindow("appviewer");
   
-  // Create app window
   const tpl = document.getElementById("tpl-appviewer");
   const win = tpl.content.cloneNode(true).firstElementChild;
   const layer = document.getElementById("window-layer");
